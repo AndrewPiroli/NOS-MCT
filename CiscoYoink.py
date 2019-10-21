@@ -33,7 +33,8 @@ class CiscoYoinkHelper():
 		self.filename = file
 		librarian = SimpleConfigParse(file)
 		self.self_help_book = librarian.read()
-	def set_dir(self, name):
+	@staticmethod
+	def set_dir(name):
 		try:
 			os.mkdir(name)
 		except FileExistsError:
@@ -54,9 +55,11 @@ class CiscoYoinkHelper():
 				os.chdir(original_dir)
 		os.remove(self.filename)
 if __name__ == "__main__":
-	NUM_THREADS_MAX = 10
 	start = time.datetime.now()
-	config = SimpleConfigParse("sample.config").read()
+	NUM_THREADS_MAX = 10
+	config = SimpleConfigParse("test.config").read()
+	CiscoYoinkHelper.set_dir("Output")
+	CiscoYoinkHelper.set_dir(time.datetime.now().strftime("%Y-%m-%d"))
 	threadlist= []
 	for entry in config:
 		threadlist.append(CiscoYoink(entry[0], entry[1], entry[2]))#### TODO: Better threading mechanism...
@@ -67,6 +70,8 @@ if __name__ == "__main__":
 			thread.join()
 		threadlist = threadlist[NUM_THREADS_MAX:]
 	CiscoYoinkHelper().organize()
+	os.chdir("..")
+	os.chdir("..")
 	end = time.datetime.now()
 	elapsed = (end-start).total_seconds()
 	print(f"Time Elapsed: {elapsed}")
