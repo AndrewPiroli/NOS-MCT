@@ -8,29 +8,20 @@ from threading import Thread
 from SimpleConfigParse import SimpleConfigParse
 class CiscoYoink(Thread):
 	host, username, password = None, None, None
-	connection = None
 	shows = ["show run", "show run all", "show vlan", "show vlan brief", "show vtp status", "show vtp password", "show start", "show int trunk", "show version"]
 	def __init__(self, host, username, password):
 		super().__init__()
 		self.host = host
 		self.username = username
 		self.password = password
-	def cisco_connect(self, ip, username, password):
-		device = { 
-		'device_type': 'cisco_ios', 
-		'host': ip, 
-		'username': username, 
-		'password': password, 
-		}
-		self.connection = ConnectHandler(**device)
 	def run(self):
-		self.cisco_connect(self.host, self.username, self.password)
-		hostname = self.connection.find_prompt().split("#")[0]
+		connection = ConnectHandler(device_type="cisco_ios", host=self.host, username=self.username, password=self.password)
+		hostname = connection.find_prompt().split("#")[0]
 		for show in self.shows:
 			filename = hostname + "_" + (show.replace(" ", "_") + ".txt")
 			try:
 				with open(filename, "w") as show_file:
-					show_file.write(self.connection.send_command(show))
+					show_file.write(connection.send_command(show))
 				with open("ciscoyoink_helper.log", "a") as log:
 					log.write(f"{hostname} {filename} epic_and_cool\n")
 			except Exception as e:
