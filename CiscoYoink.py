@@ -2,6 +2,7 @@
 #  MIT LICENSE  #
 from netmiko import ConnectHandler
 import os
+from concurrent.futures import ThreadPoolExecutor
 import datetime as time
 import shutil
 from threading import Thread
@@ -14,6 +15,7 @@ class CiscoYoink(Thread):
 		self.host = host
 		self.username = username
 		self.password = password
+		print(f'Yoinker: started host {self.host}')
 	def run(self):
 		connection = ConnectHandler(device_type="cisco_ios", host=self.host, username=self.username, password=self.password)
 		hostname = connection.find_prompt().split("#")[0]
@@ -26,6 +28,7 @@ class CiscoYoink(Thread):
 					log.write(f"{hostname} {filename} epic_and_cool\n")
 			except Exception as e:
 				print(f"Error writing show for {hostname}!")
+		print(f"Yoinker: finished host {self.host}")
 class CiscoYoinkHelper():
 	self_help_book = []
 	filename = None
@@ -54,21 +57,18 @@ class CiscoYoinkHelper():
 			finally:
 				os.chdir(original_dir)
 		os.remove(self.filename)
+def __thread_pool_wrapper(info):
+	x = CiscoYoink(info[0], info[1], info[2])
+	x.start()
+	x.join()
 if __name__ == "__main__":
 	start = time.datetime.now()
 	NUM_THREADS_MAX = 10
-	config = SimpleConfigParse("test.config").read()
+	config = SimpleConfigParse("sample.config").read()
 	CiscoYoinkHelper.set_dir("Output")
 	CiscoYoinkHelper.set_dir(time.datetime.now().strftime("%Y-%m-%d"))
-	threadlist= []
-	for entry in config:
-		threadlist.append(CiscoYoink(entry[0], entry[1], entry[2]))#### TODO: Better threading mechanism...
-	while len(threadlist) > 0:
-		for thread in threadlist[:NUM_THREADS_MAX]:
-			thread.start()
-		for thread in threadlist[:NUM_THREADS_MAX]:
-			thread.join()
-		threadlist = threadlist[NUM_THREADS_MAX:]
+	with ThreadPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
+		ex.map(__thread_pool_wrapper, config)
 	CiscoYoinkHelper().organize()
 	os.chdir("..")
 	os.chdir("..")
