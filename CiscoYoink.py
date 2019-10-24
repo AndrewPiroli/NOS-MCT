@@ -20,7 +20,8 @@ class CiscoYoink(Thread):
 		connection = ConnectHandler(device_type="cisco_ios", host=self.host, username=self.username, password=self.password)
 		hostname = connection.find_prompt().split("#")[0]
 		for show in self.shows:
-			filename = hostname + "_" + (show.replace(" ", "_") + ".txt")
+			show = show.replace(" ", "_")
+			filename =f"{hostname}_{show}.txt"
 			try:
 				with open(filename, "w") as show_file:
 					show_file.write(connection.send_command(show))
