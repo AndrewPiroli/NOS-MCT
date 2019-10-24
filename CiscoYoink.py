@@ -2,7 +2,7 @@
 #  MIT LICENSE  #
 from netmiko import ConnectHandler
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 import datetime as time
 import shutil
 from threading import Thread
@@ -17,17 +17,18 @@ class CiscoYoink(Thread):
 		self.password = password
 		print(f'Yoinker: started host {self.host}')
 	def run(self):
-		connection = ConnectHandler(device_type="cisco_ios", host=self.host, username=self.username, password=self.password)
-		hostname = connection.find_prompt().split("#")[0]
-		for show in self.shows:
-			filename = hostname + "_" + (show.replace(" ", "_") + ".txt")
-			try:
-				with open(filename, "w") as show_file:
-					show_file.write(connection.send_command(show))
-				with open("ciscoyoink_helper.log", "a") as log:
-					log.write(f"{hostname} {filename} epic_and_cool\n")
-			except Exception as e:
-				print(f"Error writing show for {hostname}!")
+		with ConnectHandler(device_type="cisco_ios", host=self.host, username=self.username, password=self.password) as connection:
+			hostname = connection.find_prompt().split("#")[0]
+			for show in self.shows:
+				show_f = show.replace(" ", "_")
+				filename =f"{hostname}_{show_f}.txt"
+				try:
+					with open(filename, "w") as show_file:
+						show_file.write(connection.send_command(show))
+					with open("ciscoyoink_helper.log", "a") as log:
+						log.write(f"{hostname} {filename} epic_and_cool\n")
+				except Exception as e:
+					print(f"Error writing show for {hostname}!")
 		print(f"Yoinker: finished host {self.host}")
 class CiscoYoinkHelper():
 	self_help_book = []
@@ -67,7 +68,7 @@ if __name__ == "__main__":
 	config = SimpleConfigParse("sample.config").read()
 	CiscoYoinkHelper.set_dir("Output")
 	CiscoYoinkHelper.set_dir(time.datetime.now().strftime("%Y-%m-%d"))
-	with ThreadPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
+	with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
 		ex.map(__thread_pool_wrapper, config)
 	CiscoYoinkHelper().organize()
 	os.chdir("..")
