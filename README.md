@@ -15,6 +15,11 @@ Designed for minimal configuration and fast deployment either as a one off or wi
 * show start
 * show int trunk
 * show version
+* show spanning-tree
+* show spanning-tree detail
+* show cdp neighbor
+* show cdp neighbor detail
+* show lldp neighbor detail
 
 ## Requires:
 
