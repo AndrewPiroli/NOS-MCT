@@ -20,3 +20,14 @@ Designed for minimal configuration and fast deployment either as a one off or wi
 
 * Python 3.6+
 * Netmiko
+
+
+## Configuration:
+
+By defualt, configuration is loaded from "sample.config" in the same directory as the script.
+
+The config file is very simple, each line is an entry with 3 fields separated by a space.
+
+The first field is the ip or hostname of the device, the second is the username to log into the device, the thrid is the password.
+
+Enable passwords are not supported, the account must be configured to log in directly to privileged exec mode.
