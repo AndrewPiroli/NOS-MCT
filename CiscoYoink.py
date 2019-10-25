@@ -21,6 +21,12 @@ class CiscoYoink(Thread):
         "show start",
         "show int trunk",
         "show version",
+        "show spanning-tree",
+        "show spanning-tree detail",
+        "show cdp neighbor",
+        "show cdp neighbor detail",
+        "show lldp neighbor",
+        "show lldp neighbor detail",
     ]
 
     def __init__(self, host, username, password):
