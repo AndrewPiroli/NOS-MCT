@@ -7,10 +7,11 @@ import datetime as time
 import shutil
 from threading import Thread
 from SimpleConfigParse import SimpleConfigParse
+import multiprocessing as mp
 
 
 class CiscoYoink(Thread):
-    host, username, password = None, None, None
+    host, username, password, shared_list = None, None, None, None
     shows = [
         "show run",
         "show run all",
@@ -29,11 +30,12 @@ class CiscoYoink(Thread):
         "show lldp neighbor detail",
     ]
 
-    def __init__(self, host, username, password):
+    def __init__(self, host, username, password, shared_list):
         super().__init__()
         self.host = host
         self.username = username
         self.password = password
+        self.shared_list = shared_list
         print(f"Yoinker: started host {self.host}")
 
     def run(self):
@@ -50,10 +52,12 @@ class CiscoYoink(Thread):
                 try:
                     with open(filename, "w") as show_file:
                         show_file.write(connection.send_command(show))
-                    with open("ciscoyoink_helper.log", "a") as log:
-                        log.write(f"{hostname} {filename} epic_and_cool\n")
+                        self.shared_list.append(
+                            f"{hostname} {filename} epic_and_cool\n"
+                        )
                 except Exception as e:
                     print(f"Error writing show for {hostname}!")
+                    print(e)
         print(f"Yoinker: finished host {self.host}")
 
 
@@ -81,7 +85,7 @@ class CiscoYoinkHelper:
                 destination = chapter[1].replace(chapter[0] + "_", "")
                 self.set_dir(chapter[0])
                 shutil.move(f"../{chapter[1]}", f"./{destination}")
-            except Exception:
+            except Exception as e:
                 print(e)
                 os.chdir(original_dir)
                 continue
@@ -91,7 +95,7 @@ class CiscoYoinkHelper:
 
 
 def __thread_pool_wrapper(info):
-    x = CiscoYoink(info[0], info[1], info[2])
+    x = CiscoYoink(info[0], info[1], info[2], info[3])
     x.start()
     x.join()
 
@@ -102,8 +106,15 @@ if __name__ == "__main__":
     config = SimpleConfigParse("sample.config").read()
     CiscoYoinkHelper.set_dir("Output")
     CiscoYoinkHelper.set_dir(time.datetime.now().strftime("%Y-%m-%d"))
+    shared_list = mp.Manager().list()
+    for index, c in enumerate(config):
+        c.append(shared_list)
+        config[index] = c
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
         ex.map(__thread_pool_wrapper, config)
+    with open("ciscoyoink_helper.log", "w+") as log:
+        for record in shared_list:
+            log.write(record)
     CiscoYoinkHelper().organize()
     os.chdir("..")
     os.chdir("..")
