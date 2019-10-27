@@ -76,7 +76,14 @@ class CiscoYoinkHelper:
             os.mkdir(name)
         except FileExistsError:
             pass
-        os.chdir(name)
+        except Exception as e:
+            print(f"Could not create {name} directory in {os.getcwd()}\nReason {e}")
+        try:
+            os.chdir(name)
+        except Exception as e:
+            print(
+                f"Could not change to {name} directory from {os.getcwd()}\nReason {e}"
+            )
 
     def organize(self):
         original_dir = os.getcwd()
@@ -86,12 +93,14 @@ class CiscoYoinkHelper:
                 self.set_dir(chapter[0])
                 shutil.move(f"../{chapter[1]}", f"./{destination}")
             except Exception as e:
-                print(e)
-                os.chdir(original_dir)
+                print(f"Error organizing {chapter[1]}: {e}")
                 continue
             finally:
                 os.chdir(original_dir)
-        os.remove(self.filename)
+        try:
+            os.remove(self.filename)
+        except:
+            print("Could not remove log file")
 
 
 def __thread_pool_wrapper(info):
@@ -112,9 +121,12 @@ if __name__ == "__main__":
         config[index] = c
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
         ex.map(__thread_pool_wrapper, config)
-    with open("ciscoyoink_helper.log", "w+") as log:
-        for record in shared_list:
-            log.write(record)
+    try:
+        with open("ciscoyoink_helper.log", "w+") as log:
+            for record in shared_list:
+                log.write(record)
+    except Exception as e:
+        print(f"Error: {e} in writing log file, shows may appear unsorted")
     CiscoYoinkHelper().organize()
     os.chdir("..")
     os.chdir("..")
