@@ -28,6 +28,13 @@ class CiscoYoink(Thread):
         "show cdp neighbor detail",
         "show lldp neighbor",
         "show lldp neighbor detail",
+        "show interfaces",
+        "show ipv6 interface brief",
+        "show ip route",
+        "show ip mroute",
+        "show ipv6 route",
+        "show ip protocols",
+        "show ipv6 protocols",
     ]
 
     def __init__(self, host, username, password, shared_list):
