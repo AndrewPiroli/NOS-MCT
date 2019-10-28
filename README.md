@@ -20,6 +20,14 @@ Designed for minimal configuration and fast deployment either as a one off or wi
 * show cdp neighbor
 * show cdp neighbor detail
 * show lldp neighbor detail
+* show interfaces
+* show ipv6 interface brief
+* show ip route
+* show ip mroute
+* show ipv6 route
+* show ipv6 mroute
+* show ip protocols
+* show ipv6 protocols
 
 ## Requires:
 
