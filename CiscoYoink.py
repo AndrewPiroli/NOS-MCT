@@ -47,8 +47,8 @@ class CiscoYoink(Thread):
         ) as connection:
             hostname = connection.find_prompt().split("#")[0]
             for show in self.shows:
-                show_f = show.replace(" ", "_")
-                filename = f"{hostname}_{show_f}.txt"
+                filename = show.replace(" ", "_")
+                filename = f"{hostname}_{filename}.txt"
                 try:
                     with open(filename, "w") as show_file:
                         show_file.write(connection.send_command(show))
