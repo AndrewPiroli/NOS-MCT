@@ -1,3 +1,5 @@
 test.config
 __pycache__
 Output
+*.json
+.vscode

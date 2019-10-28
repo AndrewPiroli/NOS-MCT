@@ -61,46 +61,32 @@ class CiscoYoink(Thread):
         print(f"Yoinker: finished host {self.host}")
 
 
-class CiscoYoinkHelper:
-    self_help_book = []
-    filename = None
+def __set_dir(name):
+    try:
+        os.mkdir(name)
+    except FileExistsError:
+        pass
+    except Exception as e:
+        print(f"Could not create {name} directory in {os.getcwd()}\nReason {e}")
+    try:
+        os.chdir(name)
+    except Exception as e:
+        print(f"Could not change to {name} directory from {os.getcwd()}\nReason {e}")
 
-    def __init__(self, file="ciscoyoink_helper.log"):
-        self.filename = file
-        librarian = SimpleConfigParse(file)
-        self.self_help_book = librarian.read()
 
-    @staticmethod
-    def set_dir(name):
+def __organize(list):
+    original_dir = os.getcwd()
+    for chapter in list:
+        chapter = chapter.split(" ")
         try:
-            os.mkdir(name)
-        except FileExistsError:
-            pass
+            destination = chapter[1].replace(chapter[0] + "_", "")
+            __set_dir(chapter[0])
+            shutil.move(f"../{chapter[1]}", f"./{destination}")
         except Exception as e:
-            print(f"Could not create {name} directory in {os.getcwd()}\nReason {e}")
-        try:
-            os.chdir(name)
-        except Exception as e:
-            print(
-                f"Could not change to {name} directory from {os.getcwd()}\nReason {e}"
-            )
-
-    def organize(self):
-        original_dir = os.getcwd()
-        for chapter in self.self_help_book:
-            try:
-                destination = chapter[1].replace(chapter[0] + "_", "")
-                self.set_dir(chapter[0])
-                shutil.move(f"../{chapter[1]}", f"./{destination}")
-            except Exception as e:
-                print(f"Error organizing {chapter[1]}: {e}")
-                continue
-            finally:
-                os.chdir(original_dir)
-        try:
-            os.remove(self.filename)
-        except:
-            print("Could not remove log file")
+            print(f"Error organizing {chapter[1]}: {e}")
+            continue
+        finally:
+            os.chdir(original_dir)
 
 
 def __thread_pool_wrapper(info):
@@ -113,21 +99,15 @@ if __name__ == "__main__":
     start = time.datetime.now()
     NUM_THREADS_MAX = 10
     config = SimpleConfigParse("sample.config").read()
-    CiscoYoinkHelper.set_dir("Output")
-    CiscoYoinkHelper.set_dir(time.datetime.now().strftime("%Y-%m-%d"))
+    __set_dir("Output")
+    __set_dir(time.datetime.now().strftime("%Y-%m-%d"))
     shared_list = mp.Manager().list()
     for index, c in enumerate(config):
         c.append(shared_list)
         config[index] = c
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
         ex.map(__thread_pool_wrapper, config)
-    try:
-        with open("ciscoyoink_helper.log", "w+") as log:
-            for record in shared_list:
-                log.write(record)
-    except Exception as e:
-        print(f"Error: {e} in writing log file, shows may appear unsorted")
-    CiscoYoinkHelper().organize()
+    __organize(list(shared_list))
     os.chdir("..")
     os.chdir("..")
     end = time.datetime.now()
