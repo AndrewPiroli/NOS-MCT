@@ -104,6 +104,8 @@ def __thread_pool_wrapper(info):
 
 
 if __name__ == "__main__":
+    print("Copyright Andrew Piroli 2019")
+    print("MIT License")
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", help="The configuration file to load.")
     output_config = parser.add_mutually_exclusive_group(required=False)
