@@ -43,4 +43,4 @@ A different config can be loaded through the --config or -c command line option.
 
 The config file is in CSV format with a header and 3 fields, hostname or ip, username, password
 
-Enable passwords are not supported, the account must be configured to log in directly to privileged exec mode.
+Enable passwords are not yet supported, the account must be configured to log in directly to privileged exec mode.
