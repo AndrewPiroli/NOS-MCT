@@ -108,6 +108,15 @@ if __name__ == "__main__":
     print("MIT License")
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", help="The configuration file to load.")
+    parser.add_argument(
+        "-t", "--threads", help="The number of devices to connect to at once."
+    )
+    parser.add_argument(
+        "-f",
+        "--force",
+        help="Allow setting NUM_THREADS to stupid levels",
+        action="store_true",
+    )
     output_config = parser.add_mutually_exclusive_group(required=False)
     output_config.add_argument(
         "-q", "--quiet", help="Suppress all output", action="store_true"
@@ -119,7 +128,16 @@ if __name__ == "__main__":
     if args.quiet or args.verbose:
         print("Quiet and Verbose options are not yet implemented!")
     start = time.datetime.now()
-    NUM_THREADS_MAX = 10
+    try:
+        NUM_THREADS_MAX = int(args.threads)
+        if NUM_THREADS_MAX > 25:
+            if args.force:
+                pass
+            else:
+                print("NUM_THREADS out of range: setting to default value of 10")
+    except:
+        print("NUM_THREADS not recognized: setting to default value of 10")
+        NUM_THREADS_MAX = 10
     if args.config:
         config = list(csv.reader(open(args.config)))
         del config[0]  # Skip the CSV header
