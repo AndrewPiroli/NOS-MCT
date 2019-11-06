@@ -6,9 +6,9 @@ from concurrent.futures import ProcessPoolExecutor
 import datetime as time
 import shutil
 from threading import Thread
-from SimpleConfigParse import SimpleConfigParse
 import multiprocessing as mp
 import argparse
+import csv
 
 
 class CiscoYoink(Thread):
@@ -119,9 +119,11 @@ if __name__ == "__main__":
     start = time.datetime.now()
     NUM_THREADS_MAX = 10
     if args.config:
-        config = SimpleConfigParse(args.config).read()
+        config = list(csv.reader(open(args.config)))
+        del config[0]  # Skip the CSV header
     else:
-        config = SimpleConfigParse("Cisco-Yoink-Default.config").read()
+        config = list(csv.reader(open("Cisco-Yoink-Default.config")))
+        del config[0]  # Skip the CSV header
     __set_dir("Output")
     __set_dir(time.datetime.now().strftime("%Y-%m-%d"))
     shared_list = mp.Manager().list()
