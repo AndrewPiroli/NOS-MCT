@@ -37,7 +37,9 @@ Designed for minimal configuration and fast deployment either as a one off or wi
 
 ## Configuration:
 
-By defualt, configuration is loaded from "sample.config" in the same directory as the script.
+By defualt, configuration is loaded from "Cisco-Yoink-Default.config" in the same directory as the script.
+
+A different config can be loaded through the --config or -c command line option.
 
 The config file is very simple, each line is an entry with 3 fields separated by a space.
 
