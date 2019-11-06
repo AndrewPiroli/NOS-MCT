@@ -41,8 +41,6 @@ By defualt, configuration is loaded from "Cisco-Yoink-Default.config" in the sam
 
 A different config can be loaded through the --config or -c command line option.
 
-The config file is very simple, each line is an entry with 3 fields separated by a space.
+The config file is in CSV format with a header and 3 fields, hostname or ip, username, password
 
-The first field is the ip or hostname of the device, the second is the username to log into the device, the thrid is the password.
-
-Enable passwords are not supported, the account must be configured to log in directly to privileged exec mode.
+Enable passwords are not yet supported, the account must be configured to log in directly to privileged exec mode.
