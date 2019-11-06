@@ -8,6 +8,7 @@ import shutil
 from threading import Thread
 from SimpleConfigParse import SimpleConfigParse
 import multiprocessing as mp
+import argparse
 
 
 class CiscoYoink(Thread):
@@ -103,9 +104,20 @@ def __thread_pool_wrapper(info):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--config", help="The configuration file to load.")
+    output_config = parser.add_mutually_exclusive_group(required=False)
+    output_config.add_argument("-q", "--quiet", help="Suppress all output", action="store_true")
+    output_config.add_argument("-v", "--verbose", help="Enable verbose output", action="store_true")
+    args = parser.parse_args()
+    if args.quiet or args.verbose:
+        print("Quiet and Verbose options are not yet implemented!")
     start = time.datetime.now()
     NUM_THREADS_MAX = 10
-    config = SimpleConfigParse("sample.config").read()
+    if args.config:
+        config = SimpleConfigParse(args.config).read()
+    else:
+        config = SimpleConfigParse("Cisco-Yoink-Default.config").read()
     __set_dir("Output")
     __set_dir(time.datetime.now().strftime("%Y-%m-%d"))
     shared_list = mp.Manager().list()
