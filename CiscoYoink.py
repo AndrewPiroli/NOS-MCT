@@ -5,13 +5,12 @@ import os
 from concurrent.futures import ProcessPoolExecutor
 import datetime as time
 import shutil
-from threading import Thread
 import multiprocessing as mp
 import argparse
 import csv
 
 
-class CiscoYoink(Thread):
+class CiscoYoink:
     host, username, password, shared_list = None, None, None, None
     shows = [
         "show run",
@@ -39,7 +38,6 @@ class CiscoYoink(Thread):
     ]
 
     def __init__(self, host, username, password, shared_list):
-        super().__init__()
         self.host = host
         self.username = username
         self.password = password
@@ -97,15 +95,11 @@ def __organize(list):
             os.chdir(original_dir)
 
 
-def __thread_pool_wrapper(info):
-    x = CiscoYoink(info[0], info[1], info[2], info[3])
-    x.start()
-    x.join()
+def __pool_wrapper(info):
+    CiscoYoink(info[0], info[1], info[2], info[3]).run()
 
 
 if __name__ == "__main__":
-    print("Copyright Andrew Piroli 2019")
-    print("MIT License")
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", help="The configuration file to load.")
     parser.add_argument(
@@ -125,19 +119,23 @@ if __name__ == "__main__":
         "-v", "--verbose", help="Enable verbose output", action="store_true"
     )
     args = parser.parse_args()
+    print("Copyright Andrew Piroli 2019")
+    print("MIT License")
     if args.quiet or args.verbose:
         print("Quiet and Verbose options are not yet implemented!")
     start = time.datetime.now()
-    try:
-        NUM_THREADS_MAX = int(args.threads)
-        if NUM_THREADS_MAX > 25:
-            if args.force:
-                pass
-            else:
-                print("NUM_THREADS out of range: setting to default value of 10")
-    except:
-        print("NUM_THREADS not recognized: setting to default value of 10")
-        NUM_THREADS_MAX = 10
+    NUM_THREADS_MAX = 10
+    if args.threads:
+        try:
+            NUM_THREADS_MAX = int(args.threads)
+            if NUM_THREADS_MAX > 25:
+                if args.force:
+                    pass
+                else:
+                    print("NUM_THREADS out of range: setting to default value of 10")
+        except:
+            print("NUM_THREADS not recognized: setting to default value of 10")
+            NUM_THREADS_MAX = 10
     if args.config:
         config = list(csv.reader(open(args.config)))
         del config[0]  # Skip the CSV header
@@ -151,7 +149,7 @@ if __name__ == "__main__":
         c.append(shared_list)
         config[index] = c
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
-        ex.map(__thread_pool_wrapper, config)
+        ex.map(__pool_wrapper, config)
     __organize(list(shared_list))
     os.chdir("..")
     os.chdir("..")
