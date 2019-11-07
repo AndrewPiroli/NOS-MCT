@@ -105,11 +105,12 @@ if __name__ == "__main__":
         "-v", "--verbose", help="Enable verbose output", action="store_true"
     )
     args = parser.parse_args()
+    start = time.datetime.now()
     print("Copyright Andrew Piroli 2019")
     print("MIT License")
+    print()
     if args.quiet or args.verbose:
         print("Quiet and Verbose options are not yet implemented!")
-    start = time.datetime.now()
     NUM_THREADS_MAX = 10
     if args.threads:
         try:
