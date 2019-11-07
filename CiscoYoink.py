@@ -10,8 +10,11 @@ import argparse
 import csv
 
 
-class CiscoYoink:
-    host, username, password, shared_list = None, None, None, None
+def run(info):
+    host = info[0]
+    username = info[1]
+    password = info[2]
+    shared_list = info[3]
     shows = [
         "show run",
         "show run all",
@@ -36,35 +39,22 @@ class CiscoYoink:
         "show ip protocols",
         "show ipv6 protocols",
     ]
-
-    def __init__(self, host, username, password, shared_list):
-        self.host = host
-        self.username = username
-        self.password = password
-        self.shared_list = shared_list
-        print(f"Yoinker: started host {self.host}")
-
-    def run(self):
-        with ConnectHandler(
-            device_type="cisco_ios",
-            host=self.host,
-            username=self.username,
-            password=self.password,
-        ) as connection:
-            hostname = connection.find_prompt().split("#")[0]
-            for show in self.shows:
-                filename = show.replace(" ", "_")
-                filename = f"{hostname}_{filename}.txt"
-                try:
-                    with open(filename, "w") as show_file:
-                        show_file.write(connection.send_command(show))
-                        self.shared_list.append(
-                            f"{hostname} {filename} epic_and_cool\n"
-                        )
-                except Exception as e:
-                    print(f"Error writing show for {hostname}!")
-                    print(e)
-        print(f"Yoinker: finished host {self.host}")
+    print(f"running - {host} {username}")
+    with ConnectHandler(
+        device_type="cisco_ios", host=host, username=username, password=password
+    ) as connection:
+        hostname = connection.find_prompt().split("#")[0]
+        for show in shows:
+            filename = show.replace(" ", "_")
+            filename = f"{hostname}_{filename}.txt"
+            try:
+                with open(filename, "w") as show_file:
+                    show_file.write(connection.send_command(show))
+                    shared_list.append(f"{hostname} {filename} epic_and_cool\n")
+            except Exception as e:
+                print(f"Error writing show for {hostname}!")
+                print(e)
+    print(f"Yoinker: finished host {host}")
 
 
 def __set_dir(name):
@@ -95,10 +85,6 @@ def __organize(list):
             os.chdir(original_dir)
 
 
-def __pool_wrapper(info):
-    CiscoYoink(info[0], info[1], info[2], info[3]).run()
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", help="The configuration file to load.")
@@ -119,11 +105,12 @@ if __name__ == "__main__":
         "-v", "--verbose", help="Enable verbose output", action="store_true"
     )
     args = parser.parse_args()
+    start = time.datetime.now()
     print("Copyright Andrew Piroli 2019")
     print("MIT License")
+    print()
     if args.quiet or args.verbose:
         print("Quiet and Verbose options are not yet implemented!")
-    start = time.datetime.now()
     NUM_THREADS_MAX = 10
     if args.threads:
         try:
@@ -149,7 +136,7 @@ if __name__ == "__main__":
         c.append(shared_list)
         config[index] = c
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
-        ex.map(__pool_wrapper, config)
+        ex.map(run, config)
     __organize(list(shared_list))
     os.chdir("..")
     os.chdir("..")
