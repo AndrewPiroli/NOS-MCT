@@ -5,14 +5,16 @@ import os
 from concurrent.futures import ProcessPoolExecutor
 import datetime as time
 import shutil
-from threading import Thread
 import multiprocessing as mp
 import argparse
 import csv
 
 
-class CiscoYoink(Thread):
-    host, username, password, shared_list = None, None, None, None
+def run(info):
+    host = info[0]
+    username = info[1]
+    password = info[2]
+    shared_list = info[3]
     shows = [
         "show run",
         "show run all",
@@ -37,36 +39,22 @@ class CiscoYoink(Thread):
         "show ip protocols",
         "show ipv6 protocols",
     ]
-
-    def __init__(self, host, username, password, shared_list):
-        super().__init__()
-        self.host = host
-        self.username = username
-        self.password = password
-        self.shared_list = shared_list
-        print(f"Yoinker: started host {self.host}")
-
-    def run(self):
-        with ConnectHandler(
-            device_type="cisco_ios",
-            host=self.host,
-            username=self.username,
-            password=self.password,
-        ) as connection:
-            hostname = connection.find_prompt().split("#")[0]
-            for show in self.shows:
-                filename = show.replace(" ", "_")
-                filename = f"{hostname}_{filename}.txt"
-                try:
-                    with open(filename, "w") as show_file:
-                        show_file.write(connection.send_command(show))
-                        self.shared_list.append(
-                            f"{hostname} {filename} epic_and_cool\n"
-                        )
-                except Exception as e:
-                    print(f"Error writing show for {hostname}!")
-                    print(e)
-        print(f"Yoinker: finished host {self.host}")
+    print(f"running - {host} {username}")
+    with ConnectHandler(
+        device_type="cisco_ios", host=host, username=username, password=password
+    ) as connection:
+        hostname = connection.find_prompt().split("#")[0]
+        for show in shows:
+            filename = show.replace(" ", "_")
+            filename = f"{hostname}_{filename}.txt"
+            try:
+                with open(filename, "w") as show_file:
+                    show_file.write(connection.send_command(show))
+                    shared_list.append(f"{hostname} {filename} epic_and_cool\n")
+            except Exception as e:
+                print(f"Error writing show for {hostname}!")
+                print(e)
+    print(f"Yoinker: finished host {host}")
 
 
 def __set_dir(name):
@@ -97,15 +85,18 @@ def __organize(list):
             os.chdir(original_dir)
 
 
-def __thread_pool_wrapper(info):
-    x = CiscoYoink(info[0], info[1], info[2], info[3])
-    x.start()
-    x.join()
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", help="The configuration file to load.")
+    parser.add_argument(
+        "-t", "--threads", help="The number of devices to connect to at once."
+    )
+    parser.add_argument(
+        "-f",
+        "--force",
+        help="Allow setting NUM_THREADS to stupid levels",
+        action="store_true",
+    )
     output_config = parser.add_mutually_exclusive_group(required=False)
     output_config.add_argument(
         "-q", "--quiet", help="Suppress all output", action="store_true"
@@ -114,10 +105,24 @@ if __name__ == "__main__":
         "-v", "--verbose", help="Enable verbose output", action="store_true"
     )
     args = parser.parse_args()
+    start = time.datetime.now()
+    print("Copyright Andrew Piroli 2019")
+    print("MIT License")
+    print()
     if args.quiet or args.verbose:
         print("Quiet and Verbose options are not yet implemented!")
-    start = time.datetime.now()
     NUM_THREADS_MAX = 10
+    if args.threads:
+        try:
+            NUM_THREADS_MAX = int(args.threads)
+            if NUM_THREADS_MAX > 25:
+                if args.force:
+                    pass
+                else:
+                    print("NUM_THREADS out of range: setting to default value of 10")
+        except:
+            print("NUM_THREADS not recognized: setting to default value of 10")
+            NUM_THREADS_MAX = 10
     if args.config:
         config = list(csv.reader(open(args.config)))
         del config[0]  # Skip the CSV header
@@ -131,7 +136,7 @@ if __name__ == "__main__":
         c.append(shared_list)
         config[index] = c
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
-        ex.map(__thread_pool_wrapper, config)
+        ex.map(run, config)
     __organize(list(shared_list))
     os.chdir("..")
     os.chdir("..")
