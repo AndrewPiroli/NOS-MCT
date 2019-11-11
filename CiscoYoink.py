@@ -119,6 +119,7 @@ if __name__ == "__main__":
                     pass
                 else:
                     print("NUM_THREADS out of range: setting to default value of 10")
+                    NUM_THREADS_MAX = 10
         except:
             print("NUM_THREADS not recognized: setting to default value of 10")
             NUM_THREADS_MAX = 10
