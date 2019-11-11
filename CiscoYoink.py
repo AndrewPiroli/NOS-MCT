@@ -49,7 +49,7 @@ def run(info, shared_list):
             try:
                 with open(filename, "w") as show_file:
                     show_file.write(connection.send_command(show))
-                    shared_list.append(f"{hostname} {filename}\n")
+                    shared_list.append(f"{hostname} {filename}")
             except Exception as e:
                 print(f"Error writing show for {hostname}!")
                 print(e)
