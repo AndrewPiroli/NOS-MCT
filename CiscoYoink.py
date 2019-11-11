@@ -10,11 +10,10 @@ import argparse
 import csv
 
 
-def run(info):
+def run(info, shared_list):
     host = info[0]
     username = info[1]
     password = info[2]
-    shared_list = info[3]
     shows = [
         "show run",
         "show run all",
@@ -132,11 +131,9 @@ if __name__ == "__main__":
     __set_dir("Output")
     __set_dir(time.datetime.now().strftime("%Y-%m-%d"))
     shared_list = mp.Manager().list()
-    for index, c in enumerate(config):
-        c.append(shared_list)
-        config[index] = c
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
-        ex.map(run, config)
+        for creds in config:
+            ex.submit(run, creds, shared_list)
     __organize(list(shared_list))
     os.chdir("..")
     os.chdir("..")
