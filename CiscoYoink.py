@@ -75,9 +75,9 @@ def __set_dir(name):
         print(f"Could not change to {name} directory from {os.getcwd()}\nReason {e}")
 
 
-def __organize(list):
+def __organize(lst):
     original_dir = os.getcwd()
-    for chapter in list:
+    for chapter in lst:
         chapter = chapter.split(" ")
         try:
             destination = chapter[1].replace(chapter[0] + "_", "")
