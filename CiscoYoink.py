@@ -1,19 +1,20 @@
 # Andrew Piroli (c)2019
 #  MIT LICENSE  #
-from netmiko import ConnectHandler
-import os
-from concurrent.futures import ProcessPoolExecutor
 import datetime as time
 import shutil
 import multiprocessing as mp
 import argparse
 import csv
+import os
+from concurrent.futures import ProcessPoolExecutor
+from netmiko import ConnectHandler
 
 
 def run(info, shared_list):
     host = info[0]
     username = info[1]
     password = info[2]
+    secret = info[3]
     shows = [
         "show run",
         "show run all",
@@ -40,8 +41,13 @@ def run(info, shared_list):
     ]
     print(f"running - {host} {username}")
     with ConnectHandler(
-        device_type="cisco_ios", host=host, username=username, password=password
+        device_type="cisco_ios",
+        host=host,
+        username=username,
+        password=password,
+        secret=secret,
     ) as connection:
+        connection.enable()
         hostname = connection.find_prompt().split("#")[0]
         for show in shows:
             filename = show.replace(" ", "_")
