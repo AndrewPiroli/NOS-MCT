@@ -9,36 +9,37 @@ import os
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
 
+shows = [
+    "show run",
+    "show run all",
+    "show vlan",
+    "show vlan brief",
+    "show vtp status",
+    "show vtp password",
+    "show start",
+    "show int trunk",
+    "show version",
+    "show spanning-tree",
+    "show spanning-tree detail",
+    "show cdp neighbor",
+    "show cdp neighbor detail",
+    "show lldp neighbor",
+    "show lldp neighbor detail",
+    "show interfaces",
+    "show ipv6 interface brief",
+    "show ip route",
+    "show ip mroute",
+    "show ipv6 route",
+    "show ip protocols",
+    "show ipv6 protocols",
+]
+
 
 def run(info, shared_list):
     host = info[0]
     username = info[1]
     password = info[2]
     secret = info[3]
-    shows = [
-        "show run",
-        "show run all",
-        "show vlan",
-        "show vlan brief",
-        "show vtp status",
-        "show vtp password",
-        "show start",
-        "show int trunk",
-        "show version",
-        "show spanning-tree",
-        "show spanning-tree detail",
-        "show cdp neighbor",
-        "show cdp neighbor detail",
-        "show lldp neighbor",
-        "show lldp neighbor detail",
-        "show interfaces",
-        "show ipv6 interface brief",
-        "show ip route",
-        "show ip mroute",
-        "show ipv6 route",
-        "show ip protocols",
-        "show ipv6 protocols",
-    ]
     print(f"running - {host} {username}")
     with ConnectHandler(
         device_type="cisco_ios",
