@@ -157,7 +157,7 @@ if __name__ == "__main__":
         config = list(csv.reader(open("Cisco-Yoink-Default.config")))
         del config[0]  # Skip the CSV header
     __set_dir("Output")
-    __set_dir(time.datetime.now().strftime("%Y-%m-%d"))
+    __set_dir(time.datetime.now().strftime("%Y-%m-%d %H.%M"))
     shared_list = mp.Manager().list()
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
         for creds in config:
