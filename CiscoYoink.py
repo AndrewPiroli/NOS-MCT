@@ -141,7 +141,7 @@ if __name__ == "__main__":
     if args.threads:
         try:
             NUM_THREADS_MAX = int(args.threads)
-            if NUM_THREADS_MAX > 25:
+            if NUM_THREADS_MAX > 25 or NUM_THREADS_MAX < 1:
                 if args.force:
                     pass
                 else:
