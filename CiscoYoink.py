@@ -26,6 +26,7 @@ shows = [
     "show lldp neighbor",
     "show lldp neighbor detail",
     "show interfaces",
+    "show ip interface brief",
     "show ipv6 interface brief",
     "show ip route",
     "show ip mroute",
