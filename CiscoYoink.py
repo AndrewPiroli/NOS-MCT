@@ -36,7 +36,7 @@ shows = [
 ]
 
 
-def run(info, shared_list):
+def run(info: list, shared_list: mp.Manager):
     """
     Worker thread running in process
     Responsible for creating the connection to the device, finding the hostname, running the shows, and saving them to the current directory.
@@ -70,7 +70,7 @@ def run(info, shared_list):
     print(f"Yoinker: finished host {host}")
 
 
-def __set_dir(name):
+def __set_dir(name: str):
     """
     Helper function to create (and handle existing) folders and change directory to them automatically.
     """
@@ -86,7 +86,7 @@ def __set_dir(name):
         print(f"Could not change to {name} directory from {os.getcwd()}\nReason {e}")
 
 
-def __organize(lst):
+def __organize(lst: list):
     """
     Responsible for taking the list of filenames of shows, creating folders, and renaming the shows into the correct folder.
 
