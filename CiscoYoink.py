@@ -1,4 +1,4 @@
-# Andrew Piroli (c)2019
+# Andrew Piroli (c)2019-2020
 #  MIT LICENSE  #
 import datetime as time
 import shutil
