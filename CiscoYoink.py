@@ -6,6 +6,7 @@ import multiprocessing as mp
 import argparse
 import csv
 import os
+import logging
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
 
@@ -36,18 +37,20 @@ shows = [
 ]
 
 
-def run(info: list, shared_list: mp.Manager):
+def run(info: list, shared_list: mp.Manager, log_level: int):
     """
     Worker thread running in process
     Responsible for creating the connection to the device, finding the hostname, running the shows, and saving them to the current directory.
     Takes `info` list which contains the login information
     Takes `shared_list` which is a multiprocessing.Manager.List used to share python objects across processes - manages pickling/de-pickling for us
+    log_level is either logging.WARNING, logging.DEBUG, or logging.CRITICAL depending on the verbosity chosen by the user
     """
+    logging.basicConfig(format="", level=log_level)
     host = info[0]
     username = info[1]
     password = info[2]
     secret = info[3]
-    print(f"running - {host} {username}")
+    logging.warning(f"running - {host} {username}")
     with ConnectHandler(
         device_type="cisco_ios",
         host=host,
@@ -65,9 +68,9 @@ def run(info: list, shared_list: mp.Manager):
                     show_file.write(connection.send_command(show))
                     shared_list.append(f"{hostname} {filename}")
             except Exception as e:
-                print(f"Error writing show for {hostname}!")
-                print(e)
-    print(f"Yoinker: finished host {host}")
+                logging.warning(f"Error writing show for {hostname}!")
+                logging.debug(str(e))
+    logging.warning(f"Yoinker: finished host {host}")
 
 
 def __set_dir(name: str):
@@ -79,11 +82,11 @@ def __set_dir(name: str):
     except FileExistsError:
         pass
     except Exception as e:
-        print(f"Could not create {name} directory in {os.getcwd()}\nReason {e}")
+        logging.warning(f"Could not create {name} directory in {os.getcwd()}\nReason {e}")
     try:
         os.chdir(name)
     except Exception as e:
-        print(f"Could not change to {name} directory from {os.getcwd()}\nReason {e}")
+        logging.warning(f"Could not change to {name} directory from {os.getcwd()}\nReason {e}")
 
 
 def __organize(lst: list):
@@ -106,7 +109,7 @@ def __organize(lst: list):
             __set_dir(chapter[0])
             shutil.move(f"../{chapter[1]}", f"./{destination}")
         except Exception as e:
-            print(f"Error organizing {chapter[1]}: {e}")
+            logging.warning(f"Error organizing {chapter[1]}: {e}")
             continue
         finally:
             os.chdir(original_dir)
@@ -133,11 +136,15 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     start = time.datetime.now()
-    print("Copyright Andrew Piroli 2019")
-    print("MIT License")
-    print()
-    if args.quiet or args.verbose:
-        print("Quiet and Verbose options are not yet implemented!")
+    log_level = logging.WARNING
+    if args.quiet:
+        log_level = logging.CRITICAL
+    if args.verbose:
+        log_level = logging.DEBUG
+    logging.basicConfig(format="", level=log_level)
+    logging.warning("Copyright Andrew Piroli 2019")
+    logging.warning("MIT License")
+    logging.warning("")
     NUM_THREADS_MAX = 10
     if args.threads:
         try:
@@ -146,10 +153,14 @@ if __name__ == "__main__":
                 if args.force:
                     pass
                 else:
-                    print("NUM_THREADS out of range: setting to default value of 10")
+                    logging.critical(
+                        "NUM_THREADS out of range: setting to default value of 10"
+                    )
                     NUM_THREADS_MAX = 10
         except:
-            print("NUM_THREADS not recognized: setting to default value of 10")
+            logging.critical(
+                "NUM_THREADS not recognized: setting to default value of 10"
+            )
             NUM_THREADS_MAX = 10
     if args.config:
         config = list(csv.reader(open(args.config)))
@@ -162,10 +173,10 @@ if __name__ == "__main__":
     shared_list = mp.Manager().list()
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
         for creds in config:
-            ex.submit(run, creds, shared_list)
+            ex.submit(run, creds, shared_list, log_level)
     __organize(list(shared_list))
     os.chdir("..")
     os.chdir("..")
     end = time.datetime.now()
     elapsed = (end - start).total_seconds()
-    print(f"Time Elapsed: {elapsed}")
+    logging.warning(f"Time Elapsed: {elapsed}")
