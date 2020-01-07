@@ -82,11 +82,15 @@ def __set_dir(name: str):
     except FileExistsError:
         pass
     except Exception as e:
-        logging.warning(f"Could not create {name} directory in {os.getcwd()}\nReason {e}")
+        logging.warning(
+            f"Could not create {name} directory in {os.getcwd()}\nReason {e}"
+        )
     try:
         os.chdir(name)
     except Exception as e:
-        logging.warning(f"Could not change to {name} directory from {os.getcwd()}\nReason {e}")
+        logging.warning(
+            f"Could not change to {name} directory from {os.getcwd()}\nReason {e}"
+        )
 
 
 def __organize(lst: list):
