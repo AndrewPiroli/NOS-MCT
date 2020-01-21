@@ -146,7 +146,7 @@ if __name__ == "__main__":
     if args.verbose:
         log_level = logging.DEBUG
     logging.basicConfig(format="", level=log_level)
-    logging.warning("Copyright Andrew Piroli 2019")
+    logging.warning("Copyright Andrew Piroli 2019-2020")
     logging.warning("MIT License")
     logging.warning("")
     NUM_THREADS_MAX = 10
