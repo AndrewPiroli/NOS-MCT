@@ -51,8 +51,6 @@ def run(info: list, shared_list: mp.Manager, log_level: int):
     password = info[2]
     secret = info[3]
     logging.warning(f"running - {host} {username}")
-    filenames = []  # The name of each file to write to the disk
-    show_results = []  # The output of each show goes here
     with ConnectHandler(
         device_type="cisco_ios",
         host=host,
@@ -65,16 +63,9 @@ def run(info: list, shared_list: mp.Manager, log_level: int):
         for show in shows:
             filename = show.replace(" ", "_")
             filename = f"{hostname}_{filename}.txt"
-            filenames.append(filename)
-            show_results.append(connection.send_command(show))
-            # If there's a network error and this append never happens we need to keep the lists in sync
-            # by deleting the most recent append to the filenames list
-            if not (len(filenames) == len(show_results)):
-                del filenames[-1]
-        for idx, filename in enumerate(filenames):
             try:
                 with open(filename, "w") as show_file:
-                    show_file.write(show_results[idx])
+                    show_file.write(connection.send_command(show))
                     shared_list.append(f"{hostname} {filename}")
             except Exception as e:
                 logging.warning(f"Error writing show for {hostname}!")
