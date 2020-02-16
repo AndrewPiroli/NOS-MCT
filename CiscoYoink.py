@@ -132,7 +132,7 @@ def __organize(lst: list):
             os.chdir(original_dir)
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", help="The configuration file to load.")
     parser.add_argument(
@@ -195,3 +195,7 @@ if __name__ == "__main__":
     end = time.datetime.now()
     elapsed = (end - start).total_seconds()
     logging.warning(f"Time Elapsed: {elapsed}")
+
+
+if __name__ == "__main__":
+    main()
