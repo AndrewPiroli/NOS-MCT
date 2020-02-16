@@ -93,6 +93,19 @@ def __set_dir(name: str):
         )
 
 
+def read_config(filename: str) -> list:
+    """
+    Generator function to processes the CSV config file. Handles the various CSV formats and removes headers.
+    """
+    with open(filename) as config_file:
+        dialect = csv.Sniffer().sniff(config_file.read(1024))  # Detect CSV style
+        config_file.seek(0)  # Reset read head to beginning of file
+        reader = csv.reader(config_file, dialect)
+        _ = next(reader)  # Skip the header
+        for config_entry in reader:
+            yield config_entry
+
+
 def __organize(lst: list):
     """
     Responsible for taking the list of filenames of shows, creating folders, and renaming the shows into the correct folder.
@@ -167,11 +180,9 @@ if __name__ == "__main__":
             )
             NUM_THREADS_MAX = 10
     if args.config:
-        config = list(csv.reader(open(args.config)))
-        del config[0]  # Skip the CSV header
+        config = read_config(os.path.abspath(args.config))
     else:
-        config = list(csv.reader(open("Cisco-Yoink-Default.config")))
-        del config[0]  # Skip the CSV header
+        config = read_config(os.path.abspath("Cisco-Yoink-Default.config"))
     __set_dir("Output")
     __set_dir(time.datetime.now().strftime("%Y-%m-%d %H.%M"))
     shared_list = mp.Manager().list()
