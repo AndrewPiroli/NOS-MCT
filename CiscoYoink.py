@@ -83,7 +83,7 @@ def load_shows_from_file(device_type: str) -> Iterator[str]:
             yield show_entry.strip()
 
 
-def read_config(filename: str) -> Iterator[str]:
+def read_config(filename: str) -> Iterator[list]:
     """
     Generator function to processes the CSV config file. Handles the various CSV formats and removes headers.
     """
