@@ -21,6 +21,6 @@ The config file is in CSV format with a header and 5 fields, hostname or ip, use
 
 The device_type field must match a netmiko device_type
 
-Show commands must be provided in a file in the same directory as the script with the naming convention of "shows_{device_type}.txt" A sample for the cisco_ios and cisco_ios_telnet are provided.
+Commands must be provided in a file in the shows directory with the naming convention of "shows_{device_type}.txt" A sample for the cisco_ios and cisco_ios_telnet are provided.
 
 A list of supported device types can be found [here](./PLATFORMS.md)
