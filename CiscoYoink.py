@@ -10,32 +10,6 @@ import logging
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
 
-shows = [
-    "show run",
-    "show run all",
-    "show vlan",
-    "show vlan brief",
-    "show vtp status",
-    "show vtp password",
-    "show start",
-    "show int trunk",
-    "show version",
-    "show spanning-tree",
-    "show spanning-tree detail",
-    "show cdp neighbor",
-    "show cdp neighbor detail",
-    "show lldp neighbor",
-    "show lldp neighbor detail",
-    "show interfaces",
-    "show ip interface brief",
-    "show ipv6 interface brief",
-    "show ip route",
-    "show ip mroute",
-    "show ipv6 route",
-    "show ip protocols",
-    "show ipv6 protocols",
-]
-
 
 def run(info: list, shared_list: mp.Manager, log_level: int):
     """
@@ -50,15 +24,18 @@ def run(info: list, shared_list: mp.Manager, log_level: int):
     username = info[1]
     password = info[2]
     secret = info[3]
+    device_type = info[4]
+    shows = load_shows_from_file(device_type)
     logging.warning(f"running - {host} {username}")
     with ConnectHandler(
-        device_type="cisco_ios",
+        device_type=device_type,
         host=host,
         username=username,
         password=password,
         secret=secret,
     ) as connection:
         connection.enable()
+        # TODO: FIXME: Other vendors might not use a #
         hostname = connection.find_prompt().split("#")[0]
         for show in shows:
             filename = show.replace(" ", "_")
@@ -93,11 +70,23 @@ def __set_dir(name: str):
         )
 
 
+def load_shows_from_file(device_type: str) -> list:
+    """
+    Generator to pull in shows for a given device type
+    """
+    show_file_list = os.path.join(
+        os.path.dirname(__file__), f"shows/shows_{device_type}.txt"
+    )
+    with open(show_file_list, "r", newline="",) as show_list:
+        for show_entry in show_list:
+            yield show_entry.strip()
+
+
 def read_config(filename: str) -> list:
     """
     Generator function to processes the CSV config file. Handles the various CSV formats and removes headers.
     """
-    with open(filename) as config_file:
+    with open(filename, "r") as config_file:
         dialect = csv.Sniffer().sniff(config_file.read(1024))  # Detect CSV style
         config_file.seek(0)  # Reset read head to beginning of file
         reader = csv.reader(config_file, dialect)
