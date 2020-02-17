@@ -7,6 +7,7 @@ import argparse
 import csv
 import os
 import logging
+from typing import Iterator
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
 
@@ -70,7 +71,7 @@ def __set_dir(name: str):
         )
 
 
-def load_shows_from_file(device_type: str) -> list:
+def load_shows_from_file(device_type: str) -> Iterator[str]:
     """
     Generator to pull in shows for a given device type
     """
@@ -82,7 +83,7 @@ def load_shows_from_file(device_type: str) -> list:
             yield show_entry.strip()
 
 
-def read_config(filename: str) -> list:
+def read_config(filename: str) -> Iterator[str]:
     """
     Generator function to processes the CSV config file. Handles the various CSV formats and removes headers.
     """
