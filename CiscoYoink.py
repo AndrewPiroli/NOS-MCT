@@ -156,7 +156,12 @@ def main():
     if args.threads:
         try:
             NUM_THREADS_MAX = int(args.threads)
-            if NUM_THREADS_MAX > 25 or NUM_THREADS_MAX < 1:
+            if NUM_THREADS_MAX < 1:
+                logging.critical(
+                    "NUM_THREADS out of range: setting to default value of 10"
+                )
+                NUM_THREADS_MAX = 10
+            elif NUM_THREADS_MAX > 25:
                 if args.force:
                     pass
                 else:
