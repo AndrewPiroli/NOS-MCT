@@ -12,6 +12,17 @@ from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
 
 
+def create_filename(hostname: str, filename: str) -> str:
+    """
+    Outputs filenames with any illegal characters removed.
+    """
+    illegals = list(" <>:\\/|?*\0")
+    illegals.extend(["CON", "PRN", "AUX", "NUL", "COM", "LPT"])
+    for illegal_string in illegals:
+        filename = filename.replace(illegal_string, "_")
+    return f"{hostname}_{filename}.txt"
+
+
 def run(info: list, shared_list: mp.Manager, log_level: int):
     """
     Worker thread running in process
@@ -39,8 +50,7 @@ def run(info: list, shared_list: mp.Manager, log_level: int):
         # TODO: FIXME: Other vendors might not use a #
         hostname = connection.find_prompt().split("#")[0]
         for show in shows:
-            filename = show.replace(" ", "_")
-            filename = f"{hostname}_{filename}.txt"
+            filename = create_filename(hostname, show)
             try:
                 with open(filename, "w") as show_file:
                     show_file.write(connection.send_command(show))
@@ -136,7 +146,7 @@ def main():
     )
     output_config = parser.add_mutually_exclusive_group(required=False)
     output_config.add_argument(
-        "-q", "--quiet", help="Suppress all output", action="store_true"
+        "-q", "--quiet", help="Suppress most output", action="store_true"
     )
     output_config.add_argument(
         "-v", "--verbose", help="Enable verbose output", action="store_true"
