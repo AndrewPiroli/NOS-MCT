@@ -146,7 +146,7 @@ def main():
     )
     output_config = parser.add_mutually_exclusive_group(required=False)
     output_config.add_argument(
-        "-q", "--quiet", help="Suppress all output", action="store_true"
+        "-q", "--quiet", help="Suppress most output", action="store_true"
     )
     output_config.add_argument(
         "-v", "--verbose", help="Enable verbose output", action="store_true"
