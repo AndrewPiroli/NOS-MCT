@@ -21,3 +21,4 @@ show ip mroute
 show ipv6 route
 show ip protocols
 show ipv6 protocols
+show archive config differences system:running-config nvram:startup-config
