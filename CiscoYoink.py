@@ -16,7 +16,7 @@ def create_filename(hostname: str, filename: str) -> str:
     """
     Outputs filenames with any illegal characters removed.
     """
-    illegals = list(" <>:\\/|?*\0")
+    illegals = list(" <>:\\/|?*\0$")
     illegals.extend(["CON", "PRN", "AUX", "NUL", "COM", "LPT"])
     for illegal_string in illegals:
         filename = filename.replace(illegal_string, "_")
