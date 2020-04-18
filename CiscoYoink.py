@@ -167,22 +167,13 @@ def main():
         try:
             NUM_THREADS_MAX = int(args.threads)
             if NUM_THREADS_MAX < 1:
-                logging.critical(
-                    "NUM_THREADS out of range: setting to default value of 10"
-                )
-                NUM_THREADS_MAX = 10
+                raise RuntimeError
             elif NUM_THREADS_MAX > 25:
-                if args.force:
-                    pass
-                else:
-                    logging.critical(
-                        "NUM_THREADS out of range: setting to default value of 10"
-                    )
-                    NUM_THREADS_MAX = 10
-        except:
-            logging.critical(
-                "NUM_THREADS not recognized: setting to default value of 10"
-            )
+                if not args.force:
+                    raise RuntimeError
+        except (ValueError, RuntimeError) as err:
+            logging.critical("NUM_THREADS out of range: setting to default value of 10")
+            logging.debug(repr(err))
             NUM_THREADS_MAX = 10
     if args.config:
         config = read_config(os.path.abspath(args.config))
