@@ -167,10 +167,10 @@ def main():
         try:
             NUM_THREADS_MAX = int(args.threads)
             if NUM_THREADS_MAX < 1:
-                raise RuntimeError
+                raise RuntimeError(f"User input: {NUM_THREADS_MAX} - below 1, can not create less than 1 processes.")
             elif NUM_THREADS_MAX > 25:
                 if not args.force:
-                    raise RuntimeError
+                    raise RuntimeError(f"User input: {NUM_THREADS_MAX} - over limit and no force flag detected - refusing to create a stupid amount of processes")
         except (ValueError, RuntimeError) as err:
             logging.critical("NUM_THREADS out of range: setting to default value of 10")
             logging.debug(repr(err))
