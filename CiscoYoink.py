@@ -170,7 +170,7 @@ def main():
                 raise RuntimeError(
                     f"User input: {NUM_THREADS_MAX} - below 1, can not create less than 1 processes."
                 )
-            elif NUM_THREADS_MAX > 25:
+            if NUM_THREADS_MAX > 25:
                 if not args.force:
                     raise RuntimeError(
                         f"User input: {NUM_THREADS_MAX} - over limit and no force flag detected - refusing to create a stupid amount of processes"
