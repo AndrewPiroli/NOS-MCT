@@ -16,7 +16,7 @@ def create_filename(hostname: str, filename: str) -> str:
     """
     Outputs filenames with any illegal characters removed.
     """
-    illegals = list(" <>:\\/|?*\0")
+    illegals = list(" <>:\\/|?*\0$")
     illegals.extend(["CON", "PRN", "AUX", "NUL", "COM", "LPT"])
     for illegal_string in illegals:
         filename = filename.replace(illegal_string, "_")
@@ -167,22 +167,17 @@ def main():
         try:
             NUM_THREADS_MAX = int(args.threads)
             if NUM_THREADS_MAX < 1:
-                logging.critical(
-                    "NUM_THREADS out of range: setting to default value of 10"
+                raise RuntimeError(
+                    f"User input: {NUM_THREADS_MAX} - below 1, can not create less than 1 processes."
                 )
-                NUM_THREADS_MAX = 10
-            elif NUM_THREADS_MAX > 25:
-                if args.force:
-                    pass
-                else:
-                    logging.critical(
-                        "NUM_THREADS out of range: setting to default value of 10"
+            if NUM_THREADS_MAX > 25:
+                if not args.force:
+                    raise RuntimeError(
+                        f"User input: {NUM_THREADS_MAX} - over limit and no force flag detected - refusing to create a stupid amount of processes"
                     )
-                    NUM_THREADS_MAX = 10
-        except:
-            logging.critical(
-                "NUM_THREADS not recognized: setting to default value of 10"
-            )
+        except (ValueError, RuntimeError) as err:
+            logging.critical("NUM_THREADS out of range: setting to default value of 10")
+            logging.debug(repr(err))
             NUM_THREADS_MAX = 10
     if args.config:
         config = read_config(os.path.abspath(args.config))
