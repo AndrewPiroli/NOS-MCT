@@ -106,7 +106,7 @@ def read_config(filename: str) -> Iterator[list]:
             yield config_entry
 
 
-def __organize(lst: list):
+def __organize(file_list: list):
     """
     Responsible for taking the list of filenames of shows, creating folders, and renaming the shows into the correct folder.
 
@@ -119,14 +119,16 @@ def __organize(lst: list):
     5) Move+rename the file from the root dir into the the folder for the hostname
     """
     original_dir = os.getcwd()
-    for chapter in lst:
-        chapter = chapter.split(" ")
+    for show_entry in file_list:
+        show_entry = show_entry.split(" ")
+        show_entry_hostname = show_entry[0]
+        show_entry_filename = show_entry[1]
         try:
-            destination = chapter[1].replace(chapter[0] + "_", "")
-            __set_dir(chapter[0])
-            shutil.move(f"../{chapter[1]}", f"./{destination}")
+            destination = show_entry_filename.replace(f"{show_entry_hostname}_", "")
+            __set_dir(show_entry_hostname)
+            shutil.move(f"../{show_entry_filename}", f"./{destination}")
         except Exception as e:
-            logging.warning(f"Error organizing {chapter[1]}: {e}")
+            logging.warning(f"Error organizing {show_entry_filename}: {e}")
             continue
         finally:
             os.chdir(original_dir)
