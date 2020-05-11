@@ -85,9 +85,7 @@ def load_shows_from_file(device_type: str, shows_folder: str) -> Iterator[str]:
     """
     Generator to pull in shows for a given device type
     """
-    show_file_list = os.path.join(
-        shows_folder, f"shows_{device_type}.txt"
-    )
+    show_file_list = os.path.join(shows_folder, f"shows_{device_type}.txt")
     with open(show_file_list, "r", newline="",) as show_list:
         for show_entry in show_list:
             yield show_entry.strip()
