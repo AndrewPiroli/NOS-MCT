@@ -23,7 +23,7 @@ def create_filename(hostname: str, filename: str) -> str:
     return f"{hostname}_{filename}.txt"
 
 
-def run(info: list, shared_list: mp.Manager, log_level: int):
+def run(info: list, shared_list: mp.Manager, log_level: int, shows_folder: str):
     """
     Worker thread running in process
     Responsible for creating the connection to the device, finding the hostname, running the shows, and saving them to the current directory.
@@ -37,7 +37,7 @@ def run(info: list, shared_list: mp.Manager, log_level: int):
     password = info[2]
     secret = info[3]
     device_type = info[4]
-    shows = load_shows_from_file(device_type)
+    shows = load_shows_from_file(device_type, shows_folder)
     logging.warning(f"running - {host} {username}")
     with ConnectHandler(
         device_type=device_type,
@@ -81,12 +81,12 @@ def __set_dir(name: str):
         )
 
 
-def load_shows_from_file(device_type: str) -> Iterator[str]:
+def load_shows_from_file(device_type: str, shows_folder: str) -> Iterator[str]:
     """
     Generator to pull in shows for a given device type
     """
     show_file_list = os.path.join(
-        os.path.dirname(__file__), f"shows/shows_{device_type}.txt"
+        shows_folder, f"shows_{device_type}.txt"
     )
     with open(show_file_list, "r", newline="",) as show_list:
         for show_entry in show_list:
@@ -185,12 +185,13 @@ def main():
         config = read_config(os.path.abspath(args.config))
     else:
         config = read_config(os.path.abspath("Cisco-Yoink-Default.config"))
+    shows_folder = os.path.abspath(os.path.join(os.getcwd(), "shows"))
     __set_dir("Output")
     __set_dir(time.datetime.now().strftime("%Y-%m-%d %H.%M"))
     shared_list = mp.Manager().list()
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
         for creds in config:
-            ex.submit(run, creds, shared_list, log_level)
+            ex.submit(run, creds, shared_list, log_level, shows_folder)
     __organize(list(shared_list))
     os.chdir("..")
     os.chdir("..")
