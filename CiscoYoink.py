@@ -19,7 +19,7 @@ def create_filename(hostname: str, filename: str) -> str:
     illegals = list(" <>:\\/|?*\0$")
     illegals.extend(["CON", "PRN", "AUX", "NUL", "COM", "LPT"])
     for illegal_string in illegals:
-        filename = filename.replace(illegal_string, "")
+        filename = filename.replace(illegal_string, " ")
     return f"{hostname}_{filename}.txt"
 
 
