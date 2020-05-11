@@ -30,6 +30,7 @@ def run(info: list, shared_list: mp.Manager, log_level: int, shows_folder: str):
     Takes `info` list which contains the login information
     Takes `shared_list` which is a multiprocessing.Manager.List used to share python objects across processes - manages pickling/de-pickling for us
     log_level is either logging.WARNING, logging.DEBUG, or logging.CRITICAL depending on the verbosity chosen by the user
+    shows_folder is a string path to the folder that contains the commands to run for every device type - this was added to fix Linux
     """
     logging.basicConfig(format="", level=log_level)
     host = info[0]
