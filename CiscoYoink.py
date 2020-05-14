@@ -7,9 +7,15 @@ import argparse
 import csv
 import os
 import logging
+import pathlib
 from typing import Iterator
+from multiprocessing.managers import ListProxy
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
+
+
+def abspath(name: str):
+    return pathlib.Path(name).absolute()
 
 
 def create_filename(hostname: str, filename: str) -> str:
@@ -23,7 +29,7 @@ def create_filename(hostname: str, filename: str) -> str:
     return f"{hostname}_{filename}.txt"
 
 
-def run(info: list, shared_list: mp.Manager, log_level: int, shows_folder: str):
+def run(info: list, shared_list: ListProxy, log_level: int, shows_folder: pathlib.Path):
     """
     Worker thread running in process
     Responsible for creating the connection to the device, finding the hostname, running the shows, and saving them to the current directory.
@@ -67,9 +73,7 @@ def __set_dir(name: str):
     Helper function to create (and handle existing) folders and change directory to them automatically.
     """
     try:
-        os.mkdir(name)
-    except FileExistsError:
-        pass
+        abspath(name).mkdir(parents=True, exist_ok=True)
     except Exception as e:
         logging.warning(
             f"Could not create {name} directory in {os.getcwd()}\nReason {e}"
@@ -82,17 +86,17 @@ def __set_dir(name: str):
         )
 
 
-def load_shows_from_file(device_type: str, shows_folder: str) -> Iterator[str]:
+def load_shows_from_file(device_type: str, shows_folder: pathlib.Path) -> Iterator[str]:
     """
     Generator to pull in shows for a given device type
     """
-    show_file_list = os.path.join(shows_folder, f"shows_{device_type}.txt")
+    show_file_list = shows_folder / f"shows_{device_type}.txt"
     with open(show_file_list, "r", newline="",) as show_list:
         for show_entry in show_list:
             yield show_entry.strip()
 
 
-def read_config(filename: str) -> Iterator[list]:
+def read_config(filename: pathlib.Path) -> Iterator[list]:
     """
     Generator function to processes the CSV config file. Handles the various CSV formats and removes headers.
     """
@@ -117,7 +121,7 @@ def __organize(file_list: list):
     4) The filename has an extra copy of the hostname, which is stripped off.
     5) Move+rename the file from the root dir into the the folder for the hostname
     """
-    original_dir = os.getcwd()
+    original_dir = abspath(".")
     for show_entry in file_list:
         show_entry = show_entry.split(" ")
         show_entry_hostname = show_entry[0]
@@ -181,10 +185,10 @@ def main():
             logging.debug(repr(err))
             NUM_THREADS_MAX = 10
     if args.config:
-        config = read_config(os.path.abspath(args.config))
+        config = read_config(abspath(args.config))
     else:
-        config = read_config(os.path.abspath("Cisco-Yoink-Default.config"))
-    shows_folder = os.path.abspath(os.path.join(os.getcwd(), "shows"))
+        config = read_config(abspath("Cisco-Yoink-Default.config"))
+    shows_folder = abspath(".") / "shows"
     __set_dir("Output")
     __set_dir(time.datetime.now().strftime("%Y-%m-%d %H.%M"))
     shared_list = mp.Manager().list()
