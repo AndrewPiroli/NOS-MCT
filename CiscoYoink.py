@@ -7,11 +7,17 @@ import argparse
 import csv
 import os
 import logging
-from pathlib import Path
+import pathlib
+
+Path = pathlib.Path  # How bad is this?
 from typing import Iterator
 from multiprocessing.managers import ListProxy
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
+
+
+def abspath(name: str):
+    return pathlib.Path(name).absolute()
 
 
 def create_filename(hostname: str, filename: str) -> str:
@@ -69,7 +75,7 @@ def __set_dir(name: str):
     Helper function to create (and handle existing) folders and change directory to them automatically.
     """
     try:
-        Path(name).mkdir(parents=True, exist_ok=True)
+        abspath(name).mkdir(parents=True, exist_ok=True)
     except Exception as e:
         logging.warning(
             f"Could not create {name} directory in {os.getcwd()}\nReason {e}"
@@ -117,7 +123,7 @@ def __organize(file_list: list):
     4) The filename has an extra copy of the hostname, which is stripped off.
     5) Move+rename the file from the root dir into the the folder for the hostname
     """
-    original_dir = Path(".").absolute()
+    original_dir = abspath(".")
     for show_entry in file_list:
         show_entry = show_entry.split(" ")
         show_entry_hostname = show_entry[0]
@@ -181,10 +187,10 @@ def main():
             logging.debug(repr(err))
             NUM_THREADS_MAX = 10
     if args.config:
-        config = read_config(Path(args.config).absolute())
+        config = read_config(abspath(args.config))
     else:
-        config = read_config(Path("Cisco-Yoink-Default.config").absolute())
-    shows_folder = Path(".").absolute() / "shows"
+        config = read_config(abspath("Cisco-Yoink-Default.config"))
+    shows_folder = abspath(".") / "shows"
     __set_dir("Output")
     __set_dir(time.datetime.now().strftime("%Y-%m-%d %H.%M"))
     shared_list = mp.Manager().list()
