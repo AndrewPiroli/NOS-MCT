@@ -8,8 +8,6 @@ import csv
 import os
 import logging
 import pathlib
-
-Path = pathlib.Path  # How bad is this?
 from typing import Iterator
 from multiprocessing.managers import ListProxy
 from concurrent.futures import ProcessPoolExecutor
@@ -31,7 +29,7 @@ def create_filename(hostname: str, filename: str) -> str:
     return f"{hostname}_{filename}.txt"
 
 
-def run(info: list, shared_list: ListProxy, log_level: int, shows_folder: Path):
+def run(info: list, shared_list: ListProxy, log_level: int, shows_folder: pathlib.Path):
     """
     Worker thread running in process
     Responsible for creating the connection to the device, finding the hostname, running the shows, and saving them to the current directory.
@@ -88,7 +86,7 @@ def __set_dir(name: str):
         )
 
 
-def load_shows_from_file(device_type: str, shows_folder: Path) -> Iterator[str]:
+def load_shows_from_file(device_type: str, shows_folder: pathlib.Path) -> Iterator[str]:
     """
     Generator to pull in shows for a given device type
     """
@@ -98,7 +96,7 @@ def load_shows_from_file(device_type: str, shows_folder: Path) -> Iterator[str]:
             yield show_entry.strip()
 
 
-def read_config(filename: Path) -> Iterator[list]:
+def read_config(filename: pathlib.Path) -> Iterator[list]:
     """
     Generator function to processes the CSV config file. Handles the various CSV formats and removes headers.
     """
