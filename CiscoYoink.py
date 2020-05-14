@@ -9,6 +9,7 @@ import os
 import logging
 from pathlib import Path
 from typing import Iterator
+from multiprocessing.managers import ListProxy
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
 
@@ -24,7 +25,7 @@ def create_filename(hostname: str, filename: str) -> str:
     return f"{hostname}_{filename}.txt"
 
 
-def run(info: list, shared_list: mp.Manager, log_level: int, shows_folder: Path):
+def run(info: list, shared_list: ListProxy, log_level: int, shows_folder: Path):
     """
     Worker thread running in process
     Responsible for creating the connection to the device, finding the hostname, running the shows, and saving them to the current directory.
