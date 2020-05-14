@@ -1,4 +1,4 @@
-# Cisco-Config-Yoinker [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+# Cisco-Config-Yoinker [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![CodeFactor](https://www.codefactor.io/repository/github/andrewpiroli/cisco-config-yoinker/badge)](https://www.codefactor.io/repository/github/andrewpiroli/cisco-config-yoinker)
 
 Pulls down configs and shows from network devices.
 
