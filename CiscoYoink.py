@@ -15,7 +15,7 @@ from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
 
 
-def abspath(name: str):
+def abspath(name: str) -> pathlib.Path:
     return pathlib.Path(name).absolute()
 
 
