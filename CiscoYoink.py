@@ -34,10 +34,10 @@ def run(info: list, result_q: mp.managers.BaseProxy, log_level: int, shows_folde
     """
     Worker thread running in process
     Responsible for creating the connection to the device, finding the hostname, running the shows, and saving them to the current directory.
-    Takes `info` list which contains the login information
-    Takes `shared_list` which is a multiprocessing.Manager.List used to share python objects across processes - manages pickling/de-pickling for us
+    info list contains device information like ip/hostname, device type, and login details
+    result_q is a proxy to a Queue where filename information is pushed so another thread can organize the files into the correct folder
     log_level is either logging.WARNING, logging.DEBUG, or logging.CRITICAL depending on the verbosity chosen by the user
-    shows_folder is a string path to the folder that contains the commands to run for every device type - this was added to fix Linux
+    shows_folder is a path to the folder that contains the commands to run for every device type - this was added to fix Linux
     """
     logging.basicConfig(format="", level=log_level)
     host = info[0]
