@@ -8,8 +8,9 @@ import csv
 import os
 import logging
 import pathlib
+import threading
 from typing import Iterator
-from multiprocessing.managers import ListProxy
+from multiprocessing.managers import BaseProxy
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
 
@@ -29,46 +30,39 @@ def create_filename(hostname: str, filename: str) -> str:
     return f"{hostname}_{filename}.txt"
 
 
-def run(info: list, shared_list: ListProxy, log_level: int, shows_folder: pathlib.Path):
+def run(info: dict, p_config: dict):
     """
     Worker thread running in process
     Responsible for creating the connection to the device, finding the hostname, running the shows, and saving them to the current directory.
-    Takes `info` list which contains the login information
-    Takes `shared_list` which is a multiprocessing.Manager.List used to share python objects across processes - manages pickling/de-pickling for us
-    log_level is either logging.WARNING, logging.DEBUG, or logging.CRITICAL depending on the verbosity chosen by the user
-    shows_folder is a string path to the folder that contains the commands to run for every device type - this was added to fix Linux
+    info dict contains device information like ip/hostname, device type, and login details
+    p_config dictionary contains configuration info on how the function itself should operate. It contains:
+      result_q is a proxy to a Queue where filename information is pushed so another thread can organize the files into the correct folder
+      log_level is either logging.WARNING, logging.DEBUG, or logging.CRITICAL depending on the verbosity chosen by the user
+      shows_folder is a path to the folder that contains the commands to run for every device type - this was added to fix Linux
     """
+    result_q = p_config["queue"]
+    log_level = p_config["log_level"]
+    shows_folder = p_config["shows_folder"]
+    host = info["host"]
+    shows = load_shows_from_file(info["device_type"], shows_folder)
     logging.basicConfig(format="", level=log_level)
-    host = info[0]
-    username = info[1]
-    password = info[2]
-    secret = info[3]
-    device_type = info[4]
-    shows = load_shows_from_file(device_type, shows_folder)
-    logging.warning(f"running - {host} {username}")
-    with ConnectHandler(
-        device_type=device_type,
-        host=host,
-        username=username,
-        password=password,
-        secret=secret,
-    ) as connection:
+    logging.warning(f"running - {host}")
+    with ConnectHandler(**info) as connection:
         connection.enable()
-        # TODO: FIXME: Other vendors might not use a #
         hostname = connection.find_prompt().split("#")[0]
         for show in shows:
             filename = create_filename(hostname, show)
             try:
                 with open(filename, "w") as show_file:
                     show_file.write(connection.send_command(show))
-                    shared_list.append(f"{hostname} {filename}")
+                result_q.put(f"{hostname} {filename}")
             except Exception as e:
                 logging.warning(f"Error writing show for {hostname}!")
                 logging.debug(str(e))
-    logging.warning(f"Yoinker: finished host {host}")
+    logging.warning(f"finished -  {host}")
 
 
-def __set_dir(name: str):
+def set_dir(name: str):
     """
     Helper function to create (and handle existing) folders and change directory to them automatically.
     """
@@ -96,7 +90,7 @@ def load_shows_from_file(device_type: str, shows_folder: pathlib.Path) -> Iterat
             yield show_entry.strip()
 
 
-def read_config(filename: pathlib.Path) -> Iterator[list]:
+def read_config(filename: pathlib.Path) -> Iterator[dict]:
     """
     Generator function to processes the CSV config file. Handles the various CSV formats and removes headers.
     """
@@ -104,31 +98,38 @@ def read_config(filename: pathlib.Path) -> Iterator[list]:
         dialect = csv.Sniffer().sniff(config_file.read(1024))  # Detect CSV style
         config_file.seek(0)  # Reset read head to beginning of file
         reader = csv.reader(config_file, dialect)
-        _ = next(reader)  # Skip the header
+        header = next(reader)
         for config_entry in reader:
-            yield config_entry
+            yield dict(zip(header, config_entry))
 
 
-def __organize(file_list: list):
+def organize(file_list: mp.managers.BaseProxy):
     """
     Responsible for taking the list of filenames of shows, creating folders, and renaming the shows into the correct folder.
 
     Process:
 
-    1) Takes a list of strings in the format of '{Hostname} {Filename}'
+    1) Pulls a string off the queue in the format of '{Hostname} {Filename}'
     2) For each element, split the string between the hostname and filename
-    3) Create a folder (__set_dir) for the hostname
+    3) Create a folder (set_dir) for the hostname
     4) The filename has an extra copy of the hostname, which is stripped off.
     5) Move+rename the file from the root dir into the the folder for the hostname
     """
-    original_dir = abspath(".")
-    for show_entry in file_list:
-        show_entry = show_entry.split(" ")
+    while True:
+        try:
+            item = file_list.get(block=True)
+            if item == "CY-DONE":
+                return
+        except Exception as e:
+            logging.warning("Error pulling from queue: {e}")
+            continue
+        original_dir = abspath(".")
+        show_entry = item.split(" ")
         show_entry_hostname = show_entry[0]
         show_entry_filename = show_entry[1]
         try:
             destination = show_entry_filename.replace(f"{show_entry_hostname}_", "")
-            __set_dir(show_entry_hostname)
+            set_dir(show_entry_hostname)
             shutil.move(f"../{show_entry_filename}", f"./{destination}")
         except Exception as e:
             logging.warning(f"Error organizing {show_entry_filename}: {e}")
@@ -189,13 +190,17 @@ def main():
     else:
         config = read_config(abspath("Cisco-Yoink-Default.config"))
     shows_folder = abspath(".") / "shows"
-    __set_dir("Output")
-    __set_dir(time.datetime.now().strftime("%Y-%m-%d %H.%M"))
-    shared_list = mp.Manager().list()
+    set_dir("Output")
+    set_dir(time.datetime.now().strftime("%Y-%m-%d %H.%M"))
+    result_q = mp.Manager().Queue()
+    p_config = {"queue": result_q, "log_level": log_level, "shows_folder": shows_folder}
+    organization_thread = threading.Thread(target=organize, args=(result_q,))
+    organization_thread.start()
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
         for creds in config:
-            ex.submit(run, creds, shared_list, log_level, shows_folder)
-    __organize(list(shared_list))
+            ex.submit(run, creds, p_config)
+    result_q.put("CY-DONE")
+    organization_thread.join()
     os.chdir("..")
     os.chdir("..")
     end = time.datetime.now()
