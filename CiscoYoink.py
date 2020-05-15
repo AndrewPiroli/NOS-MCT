@@ -30,22 +30,26 @@ def create_filename(hostname: str, filename: str) -> str:
     return f"{hostname}_{filename}.txt"
 
 
-def run(info: list, result_q: mp.managers.BaseProxy, log_level: int, shows_folder: pathlib.Path):
+def run(info: list, p_config: dict):
     """
     Worker thread running in process
     Responsible for creating the connection to the device, finding the hostname, running the shows, and saving them to the current directory.
     info list contains device information like ip/hostname, device type, and login details
-    result_q is a proxy to a Queue where filename information is pushed so another thread can organize the files into the correct folder
-    log_level is either logging.WARNING, logging.DEBUG, or logging.CRITICAL depending on the verbosity chosen by the user
-    shows_folder is a path to the folder that contains the commands to run for every device type - this was added to fix Linux
+    p_config dictionary contains configuration info on how the function itself should operate. It contains:
+      result_q is a proxy to a Queue where filename information is pushed so another thread can organize the files into the correct folder
+      log_level is either logging.WARNING, logging.DEBUG, or logging.CRITICAL depending on the verbosity chosen by the user
+      shows_folder is a path to the folder that contains the commands to run for every device type - this was added to fix Linux
     """
-    logging.basicConfig(format="", level=log_level)
+    result_q = p_config["queue"]
+    log_level = p_config["log_level"]
+    shows_folder = p_config["shows_folder"]
     host = info[0]
     username = info[1]
     password = info[2]
     secret = info[3]
     device_type = info[4]
     shows = load_shows_from_file(device_type, shows_folder)
+    logging.basicConfig(format="", level=log_level)
     logging.warning(f"running - {host} {username}")
     with ConnectHandler(
         device_type=device_type,
@@ -200,11 +204,12 @@ def main():
     set_dir("Output")
     set_dir(time.datetime.now().strftime("%Y-%m-%d %H.%M"))
     result_q = mp.Manager().Queue()
+    p_config = {"queue": result_q, "log_level": log_level, "shows_folder": shows_folder}
     organization_thread = threading.Thread(target=organize, args=(result_q,))
     organization_thread.start()
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
         for creds in config:
-            ex.submit(run, creds, result_q, log_level, shows_folder)
+            ex.submit(run, creds, p_config)
     result_q.put("CY-DONE")
     organization_thread.join()
     os.chdir("..")
