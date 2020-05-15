@@ -30,7 +30,7 @@ def create_filename(hostname: str, filename: str) -> str:
     return f"{hostname}_{filename}.txt"
 
 
-def run(info: list, result_q: BaseProxy, log_level: int, shows_folder: pathlib.Path):
+def run(info: list, result_q: mp.managers.BaseProxy, log_level: int, shows_folder: pathlib.Path):
     """
     Worker thread running in process
     Responsible for creating the connection to the device, finding the hostname, running the shows, and saving them to the current directory.
@@ -69,7 +69,7 @@ def run(info: list, result_q: BaseProxy, log_level: int, shows_folder: pathlib.P
     logging.warning(f"Yoinker: finished host {host}")
 
 
-def __set_dir(name: str):
+def set_dir(name: str):
     """
     Helper function to create (and handle existing) folders and change directory to them automatically.
     """
@@ -110,7 +110,7 @@ def read_config(filename: pathlib.Path) -> Iterator[list]:
             yield config_entry
 
 
-def __organize(file_list: mp.managers.BaseProxy):
+def organize(file_list: mp.managers.BaseProxy):
     """
     Responsible for taking the list of filenames of shows, creating folders, and renaming the shows into the correct folder.
 
@@ -118,7 +118,7 @@ def __organize(file_list: mp.managers.BaseProxy):
 
     1) Pulls a string off the queue in the format of '{Hostname} {Filename}'
     2) For each element, split the string between the hostname and filename
-    3) Create a folder (__set_dir) for the hostname
+    3) Create a folder (set_dir) for the hostname
     4) The filename has an extra copy of the hostname, which is stripped off.
     5) Move+rename the file from the root dir into the the folder for the hostname
     """
@@ -136,7 +136,7 @@ def __organize(file_list: mp.managers.BaseProxy):
         show_entry_filename = show_entry[1]
         try:
             destination = show_entry_filename.replace(f"{show_entry_hostname}_", "")
-            __set_dir(show_entry_hostname)
+            set_dir(show_entry_hostname)
             shutil.move(f"../{show_entry_filename}", f"./{destination}")
         except Exception as e:
             logging.warning(f"Error organizing {show_entry_filename}: {e}")
@@ -197,10 +197,10 @@ def main():
     else:
         config = read_config(abspath("Cisco-Yoink-Default.config"))
     shows_folder = abspath(".") / "shows"
-    __set_dir("Output")
-    __set_dir(time.datetime.now().strftime("%Y-%m-%d %H.%M"))
+    set_dir("Output")
+    set_dir(time.datetime.now().strftime("%Y-%m-%d %H.%M"))
     result_q = mp.Manager().Queue()
-    organization_thread = threading.Thread(target=__organize, args=(result_q,))
+    organization_thread = threading.Thread(target=organize, args=(result_q,))
     organization_thread.start()
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
         for creds in config:
