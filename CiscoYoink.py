@@ -44,10 +44,9 @@ def run(info: dict, p_config: dict):
     log_level = p_config["log_level"]
     shows_folder = p_config["shows_folder"]
     host = info["host"]
-    username = info["username"]
     shows = load_shows_from_file(info["device_type"], shows_folder)
     logging.basicConfig(format="", level=log_level)
-    logging.warning(f"running - {host} {username}")
+    logging.warning(f"running - {host}")
     with ConnectHandler(**info) as connection:
         connection.enable()
         hostname = connection.find_prompt().split("#")[0]
@@ -60,7 +59,7 @@ def run(info: dict, p_config: dict):
             except Exception as e:
                 logging.warning(f"Error writing show for {hostname}!")
                 logging.debug(str(e))
-    logging.warning(f"Yoinker: finished host {host}")
+    logging.warning(f"finished -  {host}")
 
 
 def set_dir(name: str):
