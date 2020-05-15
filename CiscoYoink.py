@@ -9,7 +9,7 @@ import os
 import logging
 import pathlib
 from typing import Iterator
-from multiprocessing.managers import ListProxy
+from multiprocessing.managers import BaseProxy
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
 
@@ -29,7 +29,7 @@ def create_filename(hostname: str, filename: str) -> str:
     return f"{hostname}_{filename}.txt"
 
 
-def run(info: list, shared_list: ListProxy, log_level: int, shows_folder: pathlib.Path):
+def run(info: list, shared_list: BaseProxy, log_level: int, shows_folder: pathlib.Path):
     """
     Worker thread running in process
     Responsible for creating the connection to the device, finding the hostname, running the shows, and saving them to the current directory.
@@ -109,7 +109,7 @@ def read_config(filename: pathlib.Path) -> Iterator[list]:
             yield config_entry
 
 
-def __organize(file_list: list):
+def __organize(file_list: mp.managers.BaseProxy):
     """
     Responsible for taking the list of filenames of shows, creating folders, and renaming the shows into the correct folder.
 
@@ -121,9 +121,16 @@ def __organize(file_list: list):
     4) The filename has an extra copy of the hostname, which is stripped off.
     5) Move+rename the file from the root dir into the the folder for the hostname
     """
-    original_dir = abspath(".")
-    for show_entry in file_list:
-        show_entry = show_entry.split(" ")
+    while True:
+        try:
+            item = file_list.get(block=True,timeout=30)
+            if item == "CY-DONE":
+                return
+        except Exception as e:
+            print(e)
+            continue
+        original_dir = abspath(".")
+        show_entry = item.split(" ")
         show_entry_hostname = show_entry[0]
         show_entry_filename = show_entry[1]
         try:
@@ -195,10 +202,8 @@ def main():
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
         for creds in config:
             ex.submit(run, creds, result_q, log_level, shows_folder)
-    shared_list = list()
-    while not result_q.empty():
-        shared_list.append(result_q.get())
-    __organize(list(shared_list))
+    result_q.put("CY-DONE")
+    __organize(result_q)
     os.chdir("..")
     os.chdir("..")
     end = time.datetime.now()
