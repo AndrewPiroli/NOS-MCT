@@ -45,21 +45,11 @@ def run(info: dict, p_config: dict):
     shows_folder = p_config["shows_folder"]
     host = info["host"]
     username = info["username"]
-    password = info["pass"]
-    secret = info["secret"]
-    device_type = info["device_type"]
-    shows = load_shows_from_file(device_type, shows_folder)
+    shows = load_shows_from_file(info["device_type"], shows_folder)
     logging.basicConfig(format="", level=log_level)
     logging.warning(f"running - {host} {username}")
-    with ConnectHandler(
-        device_type=device_type,
-        host=host,
-        username=username,
-        password=password,
-        secret=secret,
-    ) as connection:
+    with ConnectHandler(**info) as connection:
         connection.enable()
-        # TODO: FIXME: Other vendors might not use a #
         hostname = connection.find_prompt().split("#")[0]
         for show in shows:
             filename = create_filename(hostname, show)
