@@ -8,6 +8,7 @@ import csv
 import os
 import logging
 import pathlib
+import threading
 from typing import Iterator
 from multiprocessing.managers import BaseProxy
 from concurrent.futures import ProcessPoolExecutor
@@ -29,7 +30,7 @@ def create_filename(hostname: str, filename: str) -> str:
     return f"{hostname}_{filename}.txt"
 
 
-def run(info: list, shared_list: BaseProxy, log_level: int, shows_folder: pathlib.Path):
+def run(info: list, result_q: BaseProxy, log_level: int, shows_folder: pathlib.Path):
     """
     Worker thread running in process
     Responsible for creating the connection to the device, finding the hostname, running the shows, and saving them to the current directory.
@@ -61,7 +62,7 @@ def run(info: list, shared_list: BaseProxy, log_level: int, shows_folder: pathli
             try:
                 with open(filename, "w") as show_file:
                     show_file.write(connection.send_command(show))
-                    shared_list.put(f"{hostname} {filename}")
+                    result_q.put(f"{hostname} {filename}")
             except Exception as e:
                 logging.warning(f"Error writing show for {hostname}!")
                 logging.debug(str(e))
@@ -115,7 +116,7 @@ def __organize(file_list: mp.managers.BaseProxy):
 
     Process:
 
-    1) Takes a list of strings in the format of '{Hostname} {Filename}'
+    1) Pulls a string off the queue in the format of '{Hostname} {Filename}'
     2) For each element, split the string between the hostname and filename
     3) Create a folder (__set_dir) for the hostname
     4) The filename has an extra copy of the hostname, which is stripped off.
@@ -123,11 +124,11 @@ def __organize(file_list: mp.managers.BaseProxy):
     """
     while True:
         try:
-            item = file_list.get(block=True,timeout=30)
+            item = file_list.get(block=True)
             if item == "CY-DONE":
                 return
         except Exception as e:
-            print(e)
+            logging.warning("Error pulling from queue: {e}")
             continue
         original_dir = abspath(".")
         show_entry = item.split(" ")
@@ -199,11 +200,13 @@ def main():
     __set_dir("Output")
     __set_dir(time.datetime.now().strftime("%Y-%m-%d %H.%M"))
     result_q = mp.Manager().Queue()
+    organization_thread = threading.Thread(target=__organize, args=(result_q,))
+    organization_thread.start()
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
         for creds in config:
             ex.submit(run, creds, result_q, log_level, shows_folder)
     result_q.put("CY-DONE")
-    __organize(result_q)
+    organization_thread.join()
     os.chdir("..")
     os.chdir("..")
     end = time.datetime.now()
