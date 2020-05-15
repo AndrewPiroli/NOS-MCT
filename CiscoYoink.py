@@ -61,7 +61,7 @@ def run(info: list, shared_list: ListProxy, log_level: int, shows_folder: pathli
             try:
                 with open(filename, "w") as show_file:
                     show_file.write(connection.send_command(show))
-                    shared_list.append(f"{hostname} {filename}")
+                    shared_list.put(f"{hostname} {filename}")
             except Exception as e:
                 logging.warning(f"Error writing show for {hostname}!")
                 logging.debug(str(e))
@@ -191,10 +191,13 @@ def main():
     shows_folder = abspath(".") / "shows"
     __set_dir("Output")
     __set_dir(time.datetime.now().strftime("%Y-%m-%d %H.%M"))
-    shared_list = mp.Manager().list()
+    result_q = mp.Manager().Queue()
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
         for creds in config:
-            ex.submit(run, creds, shared_list, log_level, shows_folder)
+            ex.submit(run, creds, result_q, log_level, shows_folder)
+    shared_list = list()
+    while not result_q.empty():
+        shared_list.append(result_q.get())
     __organize(list(shared_list))
     os.chdir("..")
     os.chdir("..")
