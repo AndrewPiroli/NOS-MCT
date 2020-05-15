@@ -55,7 +55,7 @@ def run(info: dict, p_config: dict):
             try:
                 with open(filename, "w") as show_file:
                     show_file.write(connection.send_command(show))
-                    result_q.put(f"{hostname} {filename}")
+                result_q.put(f"{hostname} {filename}")
             except Exception as e:
                 logging.warning(f"Error writing show for {hostname}!")
                 logging.debug(str(e))
