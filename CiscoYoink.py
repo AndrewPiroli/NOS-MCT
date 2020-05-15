@@ -30,11 +30,11 @@ def create_filename(hostname: str, filename: str) -> str:
     return f"{hostname}_{filename}.txt"
 
 
-def run(info: list, p_config: dict):
+def run(info: dict, p_config: dict):
     """
     Worker thread running in process
     Responsible for creating the connection to the device, finding the hostname, running the shows, and saving them to the current directory.
-    info list contains device information like ip/hostname, device type, and login details
+    info dict contains device information like ip/hostname, device type, and login details
     p_config dictionary contains configuration info on how the function itself should operate. It contains:
       result_q is a proxy to a Queue where filename information is pushed so another thread can organize the files into the correct folder
       log_level is either logging.WARNING, logging.DEBUG, or logging.CRITICAL depending on the verbosity chosen by the user
@@ -43,11 +43,11 @@ def run(info: list, p_config: dict):
     result_q = p_config["queue"]
     log_level = p_config["log_level"]
     shows_folder = p_config["shows_folder"]
-    host = info[0]
-    username = info[1]
-    password = info[2]
-    secret = info[3]
-    device_type = info[4]
+    host = info["host"]
+    username = info["username"]
+    password = info["pass"]
+    secret = info["secret"]
+    device_type = info["device_type"]
     shows = load_shows_from_file(device_type, shows_folder)
     logging.basicConfig(format="", level=log_level)
     logging.warning(f"running - {host} {username}")
@@ -101,7 +101,7 @@ def load_shows_from_file(device_type: str, shows_folder: pathlib.Path) -> Iterat
             yield show_entry.strip()
 
 
-def read_config(filename: pathlib.Path) -> Iterator[list]:
+def read_config(filename: pathlib.Path) -> Iterator[dict]:
     """
     Generator function to processes the CSV config file. Handles the various CSV formats and removes headers.
     """
@@ -109,9 +109,9 @@ def read_config(filename: pathlib.Path) -> Iterator[list]:
         dialect = csv.Sniffer().sniff(config_file.read(1024))  # Detect CSV style
         config_file.seek(0)  # Reset read head to beginning of file
         reader = csv.reader(config_file, dialect)
-        _ = next(reader)  # Skip the header
+        header = next(reader)  # Skip the header
         for config_entry in reader:
-            yield config_entry
+            yield dict(zip(header, config_entry))
 
 
 def organize(file_list: mp.managers.BaseProxy):
