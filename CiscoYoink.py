@@ -98,7 +98,7 @@ def read_config(filename: pathlib.Path) -> Iterator[dict]:
         dialect = csv.Sniffer().sniff(config_file.read(1024))  # Detect CSV style
         config_file.seek(0)  # Reset read head to beginning of file
         reader = csv.reader(config_file, dialect)
-        header = next(reader)  # Skip the header
+        header = next(reader)
         for config_entry in reader:
             yield dict(zip(header, config_entry))
 
