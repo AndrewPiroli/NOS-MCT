@@ -1,6 +1,6 @@
 # Andrew Piroli (c)2019-2020
 #  MIT LICENSE  #
-import datetime as time
+import datetime as dtime
 import shutil
 import multiprocessing as mp
 import argparse
@@ -158,7 +158,7 @@ def main():
         "-v", "--verbose", help="Enable verbose output", action="store_true"
     )
     args = parser.parse_args()
-    start = time.datetime.now()
+    start = dtime.datetime.now()
     log_level = logging.WARNING
     if args.quiet:
         log_level = logging.CRITICAL
@@ -191,7 +191,7 @@ def main():
         config = read_config(abspath("Cisco-Yoink-Default.config"))
     shows_folder = abspath(".") / "shows"
     set_dir("Output")
-    set_dir(time.datetime.now().strftime("%Y-%m-%d %H.%M"))
+    set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"))
     result_q = mp.Manager().Queue()
     p_config = {"queue": result_q, "log_level": log_level, "shows_folder": shows_folder}
     organization_thread = threading.Thread(target=organize, args=(result_q,))
@@ -203,7 +203,7 @@ def main():
     organization_thread.join()
     os.chdir("..")
     os.chdir("..")
-    end = time.datetime.now()
+    end = dtime.datetime.now()
     elapsed = (end - start).total_seconds()
     logging.warning(f"Time Elapsed: {elapsed}")
 
