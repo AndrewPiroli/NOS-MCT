@@ -1,6 +1,6 @@
 # Andrew Piroli (c)2019-2020
 #  MIT LICENSE  #
-import datetime as time
+import datetime as dtime
 import shutil
 import multiprocessing as mp
 import argparse
@@ -9,7 +9,9 @@ import os
 import logging
 import pathlib
 import threading
-from typing import Iterator
+from queue import Empty as QEmptyException
+from time import sleep
+from typing import Iterator, Callable
 from multiprocessing.managers import BaseProxy
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
@@ -103,7 +105,7 @@ def read_config(filename: pathlib.Path) -> Iterator[dict]:
             yield dict(zip(header, config_entry))
 
 
-def organize(file_list: mp.managers.BaseProxy):
+def organize(file_list: mp.managers.BaseProxy, joined_flag: Callable[[], bool]):
     """
     Responsible for taking the list of filenames of shows, creating folders, and renaming the shows into the correct folder.
 
@@ -115,13 +117,35 @@ def organize(file_list: mp.managers.BaseProxy):
     4) The filename has an extra copy of the hostname, which is stripped off.
     5) Move+rename the file from the root dir into the the folder for the hostname
     """
+    empty_count = 0
+    other_exception_cnt = 0
     while True:
         try:
-            item = file_list.get(block=True)
+            item = file_list.get(block=True, timeout=1)
             if item == "CY-DONE":
                 return
+            other_exception_cnt = 0
+            empty_count = 0
+        except QEmptyException:
+            # The queue being empty is fine, as long as the worker processes haven't finished. so check if the main thread has set the flag before we care abt empty q's
+            if joined_flag():
+                empty_count += 1
+                if empty_count >= 20:
+                    # 20 attempts * 1 second each = 20 seconds with nothing on the queue, safe to say its borked somehow
+                    logging.critical(
+                        "ERROR: Queue is empty but thread still running, killing self now!"
+                    )
+                    return
+            continue
         except Exception as e:
-            logging.warning("Error pulling from queue: {e}")
+            logging.warning(f"Error pulling from queue: {e}")
+            other_exception_cnt += 1
+            if other_exception_cnt > 10:
+                # If there are 10 errors (not incl Empty queue) in a row, something is hecked up, just give up
+                logging.critical(
+                    "ERROR: Big problemos inside organize(), just going to kill myself I guess..."
+                )
+                return
             continue
         original_dir = abspath(".")
         show_entry = item.split(" ")
@@ -158,7 +182,7 @@ def main():
         "-v", "--verbose", help="Enable verbose output", action="store_true"
     )
     args = parser.parse_args()
-    start = time.datetime.now()
+    start = dtime.datetime.now()
     log_level = logging.WARNING
     if args.quiet:
         log_level = logging.CRITICAL
@@ -191,19 +215,25 @@ def main():
         config = read_config(abspath("Cisco-Yoink-Default.config"))
     shows_folder = abspath(".") / "shows"
     set_dir("Output")
-    set_dir(time.datetime.now().strftime("%Y-%m-%d %H.%M"))
+    set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"))
     result_q = mp.Manager().Queue()
     p_config = {"queue": result_q, "log_level": log_level, "shows_folder": shows_folder}
-    organization_thread = threading.Thread(target=organize, args=(result_q,))
+    org_thread_joined_flag = (
+        False  # A way to tell the thread we have joined() and are waiting on it.
+    )
+    organization_thread = threading.Thread(
+        target=organize, args=(result_q, lambda: org_thread_joined_flag)
+    )
     organization_thread.start()
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
         for creds in config:
             ex.submit(run, creds, p_config)
     result_q.put("CY-DONE")
+    org_thread_joined_flag = True
     organization_thread.join()
     os.chdir("..")
     os.chdir("..")
-    end = time.datetime.now()
+    end = dtime.datetime.now()
     elapsed = (end - start).total_seconds()
     logging.warning(f"Time Elapsed: {elapsed}")
 
