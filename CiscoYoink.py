@@ -121,7 +121,7 @@ def organize(file_list: mp.managers.BaseProxy, joined_flag: Callable[[], bool]):
     other_exception_cnt = 0
     while True:
         try:
-            item = file_list.get(block=True, timeout=2)
+            item = file_list.get(block=True, timeout=1)
             if item == "CY-DONE":
                 return
             other_exception_cnt = 0
@@ -130,8 +130,8 @@ def organize(file_list: mp.managers.BaseProxy, joined_flag: Callable[[], bool]):
             # The queue being empty is fine, as long as the worker processes haven't finished. so check if the main thread has set the flag before we care abt empty q's
             if joined_flag():
                 empty_count += 1
-                if empty_count >= 8:
-                    # 8 attempts * 2 seconds each = 16 seconds with nothing on the queue, safe to say its borked somehow
+                if empty_count >= 20:
+                    # 20 attempts * 1 second each = 20 seconds with nothing on the queue, safe to say its borked somehow
                     logging.critical(
                         "ERROR: Queue is empty but thread still running, killing self now!"
                     )
