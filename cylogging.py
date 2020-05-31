@@ -26,6 +26,6 @@ class cylogger:
                 getattr(self.logger, message_list[0])(message_list[1])  # I'm sorry
             else:
                 self.logger.critical(
-                    "Logger: invalid message format recieved: {message}"
+                    f"Logger: invalid message format recieved: {message}"
                 )
         self.logger.debug("Closing logger thread!")
