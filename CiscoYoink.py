@@ -9,12 +9,18 @@ import os
 import logging
 import pathlib
 import threading
+import cylogging
 from queue import Empty as QEmptyException
 from time import sleep
 from typing import Iterator, Callable
 from multiprocessing.managers import BaseProxy
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
+
+
+def mk_logger(q: BaseProxy, level: int, kill_flag: Callable[[], bool]):
+    logger = cylogging.cylogger(q, {"kill_callback": kill_flag, "output_level": level})
+    logger.runloop()
 
 
 def abspath(name: str) -> pathlib.Path:
@@ -39,46 +45,60 @@ def run(info: dict, p_config: dict):
     info dict contains device information like ip/hostname, device type, and login details
     p_config dictionary contains configuration info on how the function itself should operate. It contains:
       result_q is a proxy to a Queue where filename information is pushed so another thread can organize the files into the correct folder
-      log_level is either logging.WARNING, logging.DEBUG, or logging.CRITICAL depending on the verbosity chosen by the user
-      shows_folder is a path to the folder that contains the commands to run for every device type - this was added to fix Linux
+      log_q is a queue to place log messages
+      shows_folder is a path to the folder that contains the commands to run for every device type
     """
-    result_q = p_config["queue"]
-    log_level = p_config["log_level"]
+    log_q = p_config["log_queue"]
+    result_q = p_config["result_queue"]
     shows_folder = p_config["shows_folder"]
     host = info["host"]
     shows = load_shows_from_file(info["device_type"], shows_folder)
-    logging.basicConfig(format="", level=log_level)
-    logging.warning(f"running - {host}")
+    log_q.put(f"warning running - {host}")
+    nm_logger = logging.getLogger("netmiko")
+    nm_logger.removeHandler(nm_logger.handlers[0])
+    if p_config["netmiko_debug"] is not None:
+        nm_logger.setLevel(logging.DEBUG)
+        nm_log_fh = logging.FileHandler(
+            str(p_config["netmiko_debug"]) + f"{os.getpid()}.log"
+        )
+        nm_logger.addHandler(nm_log_fh)
+    else:
+        nm_logger.addHandler(logging.NullHandler())
+    nm_logger.propagate = False
     with ConnectHandler(**info) as connection:
         connection.enable()
         hostname = connection.find_prompt().split("#")[0]
+        log_q.put(f"debug run: Found hostname: {hostname} for {host}")
         for show in shows:
             filename = create_filename(hostname, show)
+            log_q.put(f"debug run: Got filename: {filename} for {host}")
             try:
                 with open(filename, "w") as show_file:
                     show_file.write(connection.send_command(show))
                 result_q.put(f"{hostname} {filename}")
             except Exception as e:
-                logging.warning(f"Error writing show for {hostname}!")
-                logging.debug(str(e))
-    logging.warning(f"finished -  {host}")
+                log_q.put(f"warning Error writing show for {hostname}!")
+                log_q.put(f"debug {str(e)}")
+    log_q.put(f"warning finished -  {host}")
 
 
-def set_dir(name: str):
+def set_dir(name: str, log_q: BaseProxy):
     """
     Helper function to create (and handle existing) folders and change directory to them automatically.
     """
     try:
         abspath(name).mkdir(parents=True, exist_ok=True)
+        log_q.put(f"debug set_dir: abspath({name}).mkdir()")
     except Exception as e:
-        logging.warning(
-            f"Could not create {name} directory in {os.getcwd()}\nReason {e}"
+        log_q.put(
+            f"warning Could not create {name} directory in {os.getcwd()}\nReason {e}"
         )
     try:
         os.chdir(name)
+        log_q.put(f"debug set_dir: os.chdir({name})")
     except Exception as e:
-        logging.warning(
-            f"Could not change to {name} directory from {os.getcwd()}\nReason {e}"
+        log_q.put(
+            f"warning Could not change to {name} directory from {os.getcwd()}\nReason {e}"
         )
 
 
@@ -92,20 +112,22 @@ def load_shows_from_file(device_type: str, shows_folder: pathlib.Path) -> Iterat
             yield show_entry.strip()
 
 
-def read_config(filename: pathlib.Path) -> Iterator[dict]:
+def read_config(filename: pathlib.Path, log_q: BaseProxy) -> Iterator[dict]:
     """
     Generator function to processes the CSV config file. Handles the various CSV formats and removes headers.
     """
     with open(filename, "r") as config_file:
+        log_q.put(f"debug read_config: filename: {filename}")
         dialect = csv.Sniffer().sniff(config_file.read(1024))  # Detect CSV style
         config_file.seek(0)  # Reset read head to beginning of file
         reader = csv.reader(config_file, dialect)
         header = next(reader)
+        log_q.put(f"debug read_config: header: {header}")
         for config_entry in reader:
             yield dict(zip(header, config_entry))
 
 
-def organize(file_list: mp.managers.BaseProxy, joined_flag: Callable[[], bool]):
+def organize(file_list: BaseProxy, log_q: BaseProxy, joined_flag: Callable[[], bool]):
     """
     Responsible for taking the list of filenames of shows, creating folders, and renaming the shows into the correct folder.
 
@@ -117,12 +139,14 @@ def organize(file_list: mp.managers.BaseProxy, joined_flag: Callable[[], bool]):
     4) The filename has an extra copy of the hostname, which is stripped off.
     5) Move+rename the file from the root dir into the the folder for the hostname
     """
+    log_q.put("debug Organize thread starting")
     empty_count = 0
     other_exception_cnt = 0
     while True:
         try:
             item = file_list.get(block=True, timeout=1)
             if item == "CY-DONE":
+                log_q.put("debug Organize thread recieved done flag, closing thread")
                 return
             other_exception_cnt = 0
             empty_count = 0
@@ -132,18 +156,18 @@ def organize(file_list: mp.managers.BaseProxy, joined_flag: Callable[[], bool]):
                 empty_count += 1
                 if empty_count >= 20:
                     # 20 attempts * 1 second each = 20 seconds with nothing on the queue, safe to say its borked somehow
-                    logging.critical(
-                        "ERROR: Queue is empty but thread still running, killing self now!"
+                    log_q.put(
+                        "critical ERROR: Queue is empty but thread still running, killing self now!"
                     )
                     return
             continue
         except Exception as e:
-            logging.warning(f"Error pulling from queue: {e}")
+            log_q.put(f"warning Error pulling from queue: {e}")
             other_exception_cnt += 1
             if other_exception_cnt > 10:
                 # If there are 10 errors (not incl Empty queue) in a row, something is hecked up, just give up
-                logging.critical(
-                    "ERROR: Big problemos inside organize(), just going to kill myself I guess..."
+                log_q.put(
+                    "critical ERROR: Big problemos inside organize(), just going to kill myself I guess..."
                 )
                 return
             continue
@@ -151,15 +175,23 @@ def organize(file_list: mp.managers.BaseProxy, joined_flag: Callable[[], bool]):
         show_entry = item.split(" ")
         show_entry_hostname = show_entry[0]
         show_entry_filename = show_entry[1]
+        log_q.put(
+            f"debug Organize thread: show_entry_hostname: {show_entry_hostname} show_entry_filename: {show_entry_filename}"
+        )
         try:
             destination = show_entry_filename.replace(f"{show_entry_hostname}_", "")
-            set_dir(show_entry_hostname)
+            log_q.put(f"debug Organize thread: destination: {destination}")
+            set_dir(show_entry_hostname, log_q)
             shutil.move(f"../{show_entry_filename}", f"./{destination}")
+            log_q.put(
+                f"debug Organize thread: shutil.move(../{show_entry_filename}, ./{destination}"
+            )
         except Exception as e:
-            logging.warning(f"Error organizing {show_entry_filename}: {e}")
+            log_q.put(f"warning Error organizing {show_entry_filename}: {e}")
             continue
         finally:
             os.chdir(original_dir)
+            log_q.put(f"debug Organize thread: finally: os.chdir({original_dir})")
 
 
 def main():
@@ -172,6 +204,11 @@ def main():
         "-f",
         "--force",
         help="Allow setting NUM_THREADS to stupid levels",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--debug-netmiko",
+        help="Advanced debuging, logs netmiko internals to a file",
         action="store_true",
     )
     output_config = parser.add_mutually_exclusive_group(required=False)
@@ -188,10 +225,16 @@ def main():
         log_level = logging.CRITICAL
     if args.verbose:
         log_level = logging.DEBUG
-    logging.basicConfig(format="", level=log_level)
-    logging.warning("Copyright Andrew Piroli 2019-2020")
-    logging.warning("MIT License")
-    logging.warning("")
+    manager = mp.Manager()
+    log_q = manager.Queue()
+    log_thread_killed_flag = False
+    log_thread = threading.Thread(
+        target=mk_logger, args=(log_q, log_level, lambda: log_thread_killed_flag)
+    )
+    log_thread.start()
+    log_q.put("warning Copyright Andrew Piroli 2019-2020")
+    log_q.put("warning MIT License")
+    log_q.put("warning ")
     NUM_THREADS_MAX = 10
     if args.threads:
         try:
@@ -206,23 +249,32 @@ def main():
                         f"User input: {NUM_THREADS_MAX} - over limit and no force flag detected - refusing to create a stupid amount of processes"
                     )
         except (ValueError, RuntimeError) as err:
-            logging.critical("NUM_THREADS out of range: setting to default value of 10")
-            logging.debug(repr(err))
+            log_q.put(
+                "critical NUM_THREADS out of range: setting to default value of 10"
+            )
+            log_q.put(f"debug {repr(err)}")
             NUM_THREADS_MAX = 10
     if args.config:
-        config = read_config(abspath(args.config))
+        config = read_config(abspath(args.config), log_q)
     else:
-        config = read_config(abspath("Cisco-Yoink-Default.config"))
+        config = read_config(abspath("Cisco-Yoink-Default.config"), log_q)
     shows_folder = abspath(".") / "shows"
-    set_dir("Output")
-    set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"))
-    result_q = mp.Manager().Queue()
-    p_config = {"queue": result_q, "log_level": log_level, "shows_folder": shows_folder}
-    org_thread_joined_flag = (
-        False  # A way to tell the thread we have joined() and are waiting on it.
-    )
+    set_dir("Output", log_q)
+    set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"), log_q)
+    if args.debug_netmiko:
+        netmiko_debug_file = abspath(".") / "netmiko."
+    else:
+        netmiko_debug_file = None
+    result_q = manager.Queue()
+    p_config = {
+        "result_queue": result_q,
+        "shows_folder": shows_folder,
+        "log_queue": log_q,
+        "netmiko_debug": netmiko_debug_file,
+    }
+    org_thread_joined_flag = False
     organization_thread = threading.Thread(
-        target=organize, args=(result_q, lambda: org_thread_joined_flag)
+        target=organize, args=(result_q, log_q, lambda: org_thread_joined_flag)
     )
     organization_thread.start()
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
@@ -235,7 +287,8 @@ def main():
     os.chdir("..")
     end = dtime.datetime.now()
     elapsed = (end - start).total_seconds()
-    logging.warning(f"Time Elapsed: {elapsed}")
+    log_q.put(f"warning Time Elapsed: {elapsed}")
+    log_thread_killed_flag = True
 
 
 if __name__ == "__main__":
