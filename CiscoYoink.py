@@ -31,11 +31,12 @@ def create_filename(hostname: str, filename: str) -> str:
     """
     Outputs filenames with any illegal characters removed.
     """
+    result = f"{hostname}_{filename}.txt"
     illegals = list(" <>:\\/|?*\0$")
     illegals.extend(["CON", "PRN", "AUX", "NUL", "COM", "LPT"])
     for illegal_string in illegals:
-        filename = filename.replace(illegal_string, "_")
-    return f"{hostname}_{filename}.txt"
+        result = result.replace(illegal_string, "_")
+    return result
 
 
 def run(info: dict, p_config: dict):
