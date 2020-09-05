@@ -195,7 +195,7 @@ def organize(file_list: BaseProxy, log_q: BaseProxy, joined_flag: Callable[[], b
             log_q.put(f"debug Organize thread: finally: os.chdir({original_dir})")
 
 
-def preload_config(filename: Pathlib.Path, log_q: BaseProxy) -> frozenset:
+def preload_config(filename: pathlib.Path, log_q: BaseProxy) -> frozenset:
     device_types = set()
     for entry in read_config(filename, log_q):
         if entry["device_type"]:
