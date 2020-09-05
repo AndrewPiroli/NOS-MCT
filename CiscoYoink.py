@@ -277,10 +277,9 @@ def main():
             )
             log_q.put(f"debug {repr(err)}")
             NUM_THREADS_MAX = 10
-    if args.config:
-        config = read_config(abspath(args.config), log_q)
-    else:
-        config = read_config(abspath("Cisco-Yoink-Default.config"), log_q)
+    if not args.config:
+       args.config = abspath("Cisco-Yoink-Default.config") 
+    config = read_config(abspath(args.config), log_q)
     shows_folder = abspath(".") / "shows"
     set_dir("Output", log_q)
     set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"), log_q)
