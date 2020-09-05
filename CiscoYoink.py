@@ -223,7 +223,10 @@ def preload_config(filename: pathlib.Path, log_q: BaseProxy) -> frozenset:
 
 
 def preload_shows(
-    device_types: frozenset, shows_dir: pathlib.Path, manager: mp.Manager
+    device_types: frozenset,
+    shows_dir: pathlib.Path,
+    manager: mp.Manager,
+    log_q: BaseProxy,
 ) -> BaseProxy:
     """
     Load all of the show files beforehand and put them in a Proxied dict. This lets each process grab the list from memory than spending disk IOPS on it
@@ -231,6 +234,7 @@ def preload_shows(
     result = manager.dict()
     for device_type in device_types:
         result[device_type] = list(load_shows_from_file(device_type, shows_dir))
+        log_q.put(f"debug Added {device_type} to show cache")
     return result
 
 
@@ -311,7 +315,9 @@ def main():
         netmiko_debug_file = None
     if not args.no_preload:
         detected_device_types = preload_config(args.config, log_q)
-        preloaded_shows = preload_shows(detected_device_types, shows_folder, manager)
+        preloaded_shows = preload_shows(
+            detected_device_types, shows_folder, manager, log_q
+        )
     else:
         preloaded_shows = None
     result_q = manager.Queue()
