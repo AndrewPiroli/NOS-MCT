@@ -195,6 +195,15 @@ def organize(file_list: BaseProxy, log_q: BaseProxy, joined_flag: Callable[[], b
             log_q.put(f"debug Organize thread: finally: os.chdir({original_dir})")
 
 
+def preload_config(filename: Pathlib.Path, log_q: BaseProxy) -> frozenset:
+    device_types = set()
+    config = list(read_config(filename, log_q))
+    for entry in config:
+        if entry["device_type"]:
+            device_types.add(entry["device_type"])
+    return frozenset(device_types)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", help="The configuration file to load.")
@@ -211,6 +220,9 @@ def main():
         "--debug-netmiko",
         help="Advanced debuging, logs netmiko internals to a file",
         action="store_true",
+    )
+    parser.add_argument(
+        "--no-preload", help="Disable caching for config files.", action="store_true",
     )
     output_config = parser.add_mutually_exclusive_group(required=False)
     output_config.add_argument(
