@@ -197,11 +197,21 @@ def organize(file_list: BaseProxy, log_q: BaseProxy, joined_flag: Callable[[], b
 
 def preload_config(filename: Pathlib.Path, log_q: BaseProxy) -> frozenset:
     device_types = set()
-    config = list(read_config(filename, log_q))
-    for entry in config:
+    for entry in read_config(filename, log_q):
         if entry["device_type"]:
             device_types.add(entry["device_type"])
+        else:
+            log_q.put("warning: preload_config: config entry with no device_type")
     return frozenset(device_types)
+
+
+def preload_shows(
+    device_types: frozenset, shows_dir: pathlib.Path, log_q: BaseProxy
+) -> dict:
+    result = dict()
+    for device_type in device_types:
+        result[device_type] = list(load_shows_from_file(device_type, shows_dir))
+    return result
 
 
 def main():
