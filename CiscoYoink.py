@@ -60,7 +60,7 @@ def run(info: dict, p_config: dict):
     nm_logger = logging.getLogger("netmiko")
     nm_logger.removeHandler(nm_logger.handlers[0])
     if shows_cache is not None:
-        if device_type in shows_cache.keys():
+        if device_type in shows_cache:
             log_q.put(f"debug show cache hit device_type: {device_type}")
             shows = shows_cache[device_type]
         else:
@@ -233,6 +233,8 @@ def preload_shows(
     """
     result = manager.dict()
     for device_type in device_types:
+        if device_type in result:
+            continue
         result[device_type] = list(load_shows_from_file(device_type, shows_dir))
         log_q.put(f"debug Added {device_type} to show cache")
     return result
