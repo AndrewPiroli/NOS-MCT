@@ -48,15 +48,29 @@ def run(info: dict, p_config: dict):
       result_q is a proxy to a Queue where filename information is pushed so another thread can organize the files into the correct folder
       log_q is a queue to place log messages
       shows_folder is a path to the folder that contains the commands to run for every device type
+      shows_cache is a dict with a cached list of shows for each device_type
     """
     log_q = p_config["log_queue"]
     result_q = p_config["result_queue"]
     shows_folder = p_config["shows_folder"]
     host = info["host"]
-    shows = load_shows_from_file(info["device_type"], shows_folder)
+    device_type = info["device_type"]
+    shows_cache = p_config["shows_cache"]
     log_q.put(f"warning running - {host}")
     nm_logger = logging.getLogger("netmiko")
     nm_logger.removeHandler(nm_logger.handlers[0])
+    if shows_cache is not None:
+        if device_type in shows_cache.keys():
+            log_q.put(f"debug show cache hit device_type: {device_type}")
+            shows = shows_cache[device_type]
+        else:
+            log_q.put(f"debug show cache miss: device_type: {device_type}")
+            shows = load_shows_from_file(device_type, shows_folder)
+    else:
+        log_q.put(
+            f"debug Caching is disabled: load shows from file: device_type: {device_type}"
+        )
+        shows = load_shows_from_file(device_type, shows_folder)
     if p_config["netmiko_debug"] is not None:
         nm_logger.setLevel(logging.DEBUG)
         nm_log_fh = logging.FileHandler(
@@ -195,6 +209,35 @@ def organize(file_list: BaseProxy, log_q: BaseProxy, joined_flag: Callable[[], b
             log_q.put(f"debug Organize thread: finally: os.chdir({original_dir})")
 
 
+def preload_config(filename: pathlib.Path, log_q: BaseProxy) -> frozenset:
+    """
+    Read the entire config file, and record the unique device_types. Used for seeing what we can preload from the show files.
+    """
+    device_types = set()
+    for entry in read_config(filename, log_q):
+        if entry["device_type"]:
+            device_types.add(entry["device_type"])
+        else:
+            log_q.put("warning: preload_config: config entry with no device_type")
+    return frozenset(device_types)
+
+
+def preload_shows(
+    device_types: frozenset,
+    shows_dir: pathlib.Path,
+    manager: mp.Manager,
+    log_q: BaseProxy,
+) -> BaseProxy:
+    """
+    Load all of the show files beforehand and put them in a Proxied dict. This lets each process grab the list from memory than spending disk IOPS on it
+    """
+    result = manager.dict()
+    for device_type in device_types:
+        result[device_type] = list(load_shows_from_file(device_type, shows_dir))
+        log_q.put(f"debug Added {device_type} to show cache")
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", help="The configuration file to load.")
@@ -211,6 +254,9 @@ def main():
         "--debug-netmiko",
         help="Advanced debuging, logs netmiko internals to a file",
         action="store_true",
+    )
+    parser.add_argument(
+        "--no-preload", help="Disable caching for config files.", action="store_true",
     )
     output_config = parser.add_mutually_exclusive_group(required=False)
     output_config.add_argument(
@@ -255,10 +301,11 @@ def main():
             )
             log_q.put(f"debug {repr(err)}")
             NUM_THREADS_MAX = 10
-    if args.config:
-        config = read_config(abspath(args.config), log_q)
+    if not args.config:
+        args.config = abspath("Cisco-Yoink-Default.config")
     else:
-        config = read_config(abspath("Cisco-Yoink-Default.config"), log_q)
+        args.config = abspath(args.config)
+    config = read_config(abspath(args.config), log_q)
     shows_folder = abspath(".") / "shows"
     set_dir("Output", log_q)
     set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"), log_q)
@@ -266,12 +313,20 @@ def main():
         netmiko_debug_file = abspath(".") / "netmiko."
     else:
         netmiko_debug_file = None
+    if not args.no_preload:
+        detected_device_types = preload_config(args.config, log_q)
+        preloaded_shows = preload_shows(
+            detected_device_types, shows_folder, manager, log_q
+        )
+    else:
+        preloaded_shows = None
     result_q = manager.Queue()
     p_config = {
         "result_queue": result_q,
         "shows_folder": shows_folder,
         "log_queue": log_q,
         "netmiko_debug": netmiko_debug_file,
+        "shows_cache": preloaded_shows,
     }
     org_thread_joined_flag = False
     organization_thread = threading.Thread(
