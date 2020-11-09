@@ -1,8 +1,11 @@
-# Cisco-Config-Yoinker [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![CodeFactor](https://www.codefactor.io/repository/github/andrewpiroli/cisco-config-yoinker/badge)](https://www.codefactor.io/repository/github/andrewpiroli/cisco-config-yoinker)
+# NOS-MCT [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![CodeFactor](https://www.codefactor.io/repository/github/andrewpiroli/nos-mct/badge)](https://www.codefactor.io/repository/github/andrewpiroli/nos-mct)
 
-Pulls down configs and shows from network devices.
+Network Operating System Mass Configuration Tool
 
-Designed for minimal configuration and fast deployment either as a one off or with cron/Task Scheduler.
+
+Pulls or pushes configs and shows/statistics from network devices.
+
+Designed for minimal configuration, few dependencies, and fast deployment either as a one off or with cron/Task Scheduler.
 
 
 ## Requires:
@@ -13,7 +16,7 @@ Designed for minimal configuration and fast deployment either as a one off or wi
 
 ## Configuration:
 
-By defualt, configuration is loaded from "Cisco-Yoink-Default.config" in the same directory as the script.
+By defualt, configuration is loaded from "nosmct.default.config" in the same directory as the script.
 
 A different config can be loaded through the --config or -c command line option.
 

@@ -9,7 +9,7 @@ import os
 import logging
 import pathlib
 import threading
-import cylogging
+import mctlogger
 from queue import Empty as QEmptyException
 from time import sleep
 from typing import Iterator, Callable
@@ -19,7 +19,7 @@ from netmiko import ConnectHandler
 
 
 def mk_logger(q: BaseProxy, level: int, kill_flag: Callable[[], bool]):
-    logger = cylogging.cylogger(q, {"kill_callback": kill_flag, "output_level": level})
+    logger = mctlogger.mctlogger(q, {"kill_callback": kill_flag, "output_level": level})
     logger.runloop()
 
 
@@ -304,7 +304,7 @@ def main():
             log_q.put(f"debug {repr(err)}")
             NUM_THREADS_MAX = 10
     if not args.config:
-        args.config = abspath("Cisco-Yoink-Default.config")
+        args.config = abspath("nosmct.default.config")
     else:
         args.config = abspath(args.config)
     config = read_config(abspath(args.config), log_q)
