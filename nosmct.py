@@ -291,6 +291,35 @@ def handle_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def confirm_yeet(mode: OperatingModes, confirmed: bool, log_q: BaseProxy) -> bool:
+    """
+    Yeeting configs onto the device is a dangerous op, make sure they know what they are doing so I feel a little better.
+    """
+    if mode == OperatingModes.YeetMode and not confirmed:
+        log_q.put("critical YeetMode selected without confirmation")
+        sleep(0.5)  # Time for log message
+        attempt = 1
+        while True:
+            response = (
+                input(
+                    f"Attempt: {attempt} of 5. Do you confirm you are in yeet (config SEND) mode? [y/N]: "
+                )
+                .strip()
+                .lower()
+            )
+            if response.startswith("y"):
+                break
+            if response.startswith("n"):
+                return False
+            else:
+                attempt += 1
+                if attempt > 5:
+                    return False
+    elif mode == OperatingModes.YoinkMode and confirmed:
+        log_q.put("warning confirm-yeet option has no effect in YoinkMode")
+    return True
+
+
 def main():
     args = handle_arguments()
     start = dtime.datetime.now()
@@ -311,36 +340,13 @@ def main():
     log_q.put("warning ")
     selected_mode = OperatingModes.YeetMode if args.yeet else OperatingModes.YoinkMode
     log_q.put(f"warning Running in operating mode: {selected_mode}")
-    if selected_mode == OperatingModes.YeetMode and not args.confirm_yeet:
-        log_q.put("critical YeetMode selected without confirmation")
-        sleep(0.5)  # Time for log message
-        attempt = 1
-        die = False
-        while True:
-            if die:
-                log_q.put("critical YeetMode run aborted due to user confirmation")
-                log_thread_killed_flag = True
-                sleep(1.5)  # Time for thread to die
-                import sys
+    if not confirm_yeet(selected_mode, args.confirm_yeet, log_q):
+        log_q.put("critical Aborting due to yeeting without consent.")
+        log_thread_killed_flag = True
+        sleep(1.5)
+        import sys
 
-                sys.exit()
-            response = (
-                input(
-                    f"Attempt: {attempt} of 5. Do you confirm you are in yeet (config SEND) mode? [y/N]: "
-                )
-                .strip()
-                .lower()
-            )
-            if response.startswith("y"):
-                break
-            if response.startswith("n"):
-                die = True
-            else:
-                attempt += 1
-                if attempt > 5:
-                    die = True
-    elif selected_mode == OperatingModes.YoinkMode and args.confirm_yeet:
-        log_q.put("warning confirm-yeet option has no effect in YoinkMode")
+        sys.exit()
     NUM_THREADS_MAX = 10
     if args.threads:
         try:
