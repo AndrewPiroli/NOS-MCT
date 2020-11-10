@@ -265,6 +265,11 @@ def main():
         required=True,
     )
     parser.add_argument(
+        "--confirm-yeet",
+        help="Bypass confirmation prompt for yeet mode",
+        action="store_true",
+    )
+    parser.add_argument(
         "-t", "--threads", help="The number of devices to connect to at once."
     )
     parser.add_argument(
@@ -301,6 +306,36 @@ def main():
     log_q.put("warning ")
     selected_mode = OperatingModes.YeetMode if args.yeet else OperatingModes.YoinkMode
     log_q.put(f"warning Running in operating mode: {selected_mode}")
+    if selected_mode == OperatingModes.YeetMode and not args.confirm_yeet:
+        log_q.put("critical YeetMode selected without confirmation")
+        sleep(0.5)  # Time for log message
+        attempt = 1
+        die = False
+        while True:
+            if die:
+                log_q.put("critical YeetMode run aborted due to user confirmation")
+                log_thread_killed_flag = True
+                sleep(1.5)  # Time for thread to die
+                import sys
+
+                sys.exit()
+            response = (
+                input(
+                    f"Attempt: {attempt} of 5. Do you confirm you are in yeet (config SEND) mode? [y/N]: "
+                )
+                .strip()
+                .lower()
+            )
+            if response.startswith("y"):
+                break
+            if response.startswith("n"):
+                die = True
+            else:
+                attempt += 1
+                if attempt > 5:
+                    die = True
+    elif selected_mode == OperatingModes.YoinkMode and args.confirm_yeet:
+        log_q.put("warning confirm-yeet option has no effect in YoinkMode")
     NUM_THREADS_MAX = 10
     if args.threads:
         try:
