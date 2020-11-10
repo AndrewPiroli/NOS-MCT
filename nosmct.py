@@ -107,6 +107,8 @@ def run(info: dict, p_config: dict):
             except Exception as e:
                 log_q.put(f"warning Error writing show for {hostname}!")
                 log_q.put(f"debug {str(e)}")
+            finally:
+                connection.save_config()
     log_q.put(f"warning finished -  {host}")
 
 
