@@ -59,25 +59,20 @@ def run(info: dict, p_config: dict):
     mode = p_config["mode"]
     log_q = p_config["log_queue"]
     result_q = p_config["result_queue"]
-    shows_folder = p_config["shows_folder"]
     host = info["host"]
     device_type = info["device_type"]
+    jobfile = p_config["jobfile"]
     jobfile_cache = p_config["jobfile_cache"]
     log_q.put(f"warning running - {host}")
     nm_logger = logging.getLogger("netmiko")
     nm_logger.removeHandler(nm_logger.handlers[0])
     if jobfile_cache is not None:
-        if device_type in jobfile_cache:
-            log_q.put(f"debug show cache hit device_type: {device_type}")
-            shows = jobfile_cache[device_type]
-        else:
-            log_q.put(f"debug show cache miss: device_type: {device_type}")
-            shows = load_shows_from_file(shows_folder / f"shows_{device_type}.txt")
+        jobfile = jobfile_cache
     else:
         log_q.put(
             f"debug Caching is disabled: load shows from file: device_type: {device_type}"
         )
-        shows = load_shows_from_file(shows_folder / f"shows_{device_type}.txt")
+        jobfile = load_shows_from_file(jobfile)
     if p_config["netmiko_debug"] is not None:
         nm_logger.setLevel(logging.DEBUG)
         nm_log_fh = logging.FileHandler(
@@ -91,7 +86,7 @@ def run(info: dict, p_config: dict):
         connection.enable()
         hostname = connection.find_prompt().split("#")[0]
         log_q.put(f"debug run: Found hostname: {hostname} for {host}")
-        for show in shows:
+        for show in jobfile:
             filename = create_filename(hostname, show)
             log_q.put(f"debug run: Got filename: {filename} for {host}")
             try:
@@ -229,22 +224,16 @@ def preload_inventory(filename: pathlib.Path, log_q: BaseProxy) -> frozenset:
 
 
 def preload_jobfile(
-    device_types: frozenset,
-    shows_dir: pathlib.Path,
+    jobfile: pathlib.Path,
     manager: mp.Manager,
     log_q: BaseProxy,
 ) -> BaseProxy:
     """
     Load all of the show files beforehand and put them in a Proxied dict. This lets each process grab the list from memory than spending disk IOPS on it
     """
-    result = manager.dict()
-    for device_type in device_types:
-        if device_type in result:
-            continue
-        result[device_type] = list(
-            load_shows_from_file(shows_dir / f"shows_{device_type}.txt")
-        )
-        log_q.put(f"debug Added {device_type} to show cache")
+    result = manager.list()
+    result = list(load_shows_from_file(jobfile))
+    log_q.put(f"debug Added {jobfile} to cache")
     return result
 
 
@@ -330,7 +319,7 @@ def main():
     if not args.no_preload:
         detected_device_types = preload_inventory(args.inventory, log_q)
         preloaded_shows = preload_jobfile(
-            detected_device_types, shows_folder, manager, log_q
+            args.jobfile, manager, log_q
         )
     else:
         preloaded_shows = None
@@ -338,9 +327,9 @@ def main():
     p_config = {
         "mode": selected_mode,
         "result_queue": result_q,
-        "shows_folder": shows_folder,
         "log_queue": log_q,
         "netmiko_debug": netmiko_debug_file,
+        "jobfile": args.jobfile,
         "jobfile_cache": preloaded_shows,
     }
     org_thread_joined_flag = False
