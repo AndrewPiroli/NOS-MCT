@@ -65,12 +65,12 @@ def run(info: dict, p_config: dict):
             shows = shows_cache[device_type]
         else:
             log_q.put(f"debug show cache miss: device_type: {device_type}")
-            shows = load_shows_from_file(device_type, shows_folder)
+            shows = load_shows_from_file(shows_folder / f"shows_{device_type}.txt")
     else:
         log_q.put(
             f"debug Caching is disabled: load shows from file: device_type: {device_type}"
         )
-        shows = load_shows_from_file(device_type, shows_folder)
+        shows = load_shows_from_file(shows_folder / f"shows_{device_type}.txt")
     if p_config["netmiko_debug"] is not None:
         nm_logger.setLevel(logging.DEBUG)
         nm_log_fh = logging.FileHandler(
@@ -117,12 +117,11 @@ def set_dir(name: str, log_q: BaseProxy):
         )
 
 
-def load_shows_from_file(device_type: str, shows_folder: pathlib.Path) -> Iterator[str]:
+def load_shows_from_file(filename: pathlib.Path) -> Iterator[str]:
     """
     Generator to pull in shows for a given device type
     """
-    show_file_list = shows_folder / f"shows_{device_type}.txt"
-    with open(show_file_list, "r", newline="",) as show_list:
+    with open(filename, "r", newline="",) as show_list:
         for show_entry in show_list:
             yield show_entry.strip()
 
@@ -235,22 +234,16 @@ def preload_shows(
     for device_type in device_types:
         if device_type in result:
             continue
-        result[device_type] = list(load_shows_from_file(device_type, shows_dir))
+        result[device_type] = list(load_shows_from_file(shows_dir / f"shows_{device_type}.txt"))
         log_q.put(f"debug Added {device_type} to show cache")
     return result
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--config", help="The configuration file to load.")
+    parser.add_argument("-i", "--inventory", help="The inventory file to load.")
     parser.add_argument(
         "-t", "--threads", help="The number of devices to connect to at once."
-    )
-    parser.add_argument(
-        "-f",
-        "--force",
-        help="Allow setting NUM_THREADS to stupid levels",
-        action="store_true",
     )
     parser.add_argument(
         "--debug-netmiko",
@@ -292,22 +285,17 @@ def main():
                 raise RuntimeError(
                     f"User input: {NUM_THREADS_MAX} - below 1, can not create less than 1 processes."
                 )
-            if NUM_THREADS_MAX > 25:
-                if not args.force:
-                    raise RuntimeError(
-                        f"User input: {NUM_THREADS_MAX} - over limit and no force flag detected - refusing to create a stupid amount of processes"
-                    )
         except (ValueError, RuntimeError) as err:
             log_q.put(
                 "critical NUM_THREADS out of range: setting to default value of 10"
             )
             log_q.put(f"debug {repr(err)}")
             NUM_THREADS_MAX = 10
-    if not args.config:
-        args.config = abspath("nosmct.default.config")
+    if not args.inventory:
+        args.inventory = abspath("nosmct.default.config")
     else:
-        args.config = abspath(args.config)
-    config = read_config(abspath(args.config), log_q)
+        args.inventory = abspath(args.inventory)
+    config = read_config(abspath(args.inventory), log_q)
     shows_folder = abspath(".") / "shows"
     set_dir("Output", log_q)
     set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"), log_q)
@@ -316,7 +304,7 @@ def main():
     else:
         netmiko_debug_file = None
     if not args.no_preload:
-        detected_device_types = preload_config(args.config, log_q)
+        detected_device_types = preload_config(args.inventory, log_q)
         preloaded_shows = preload_shows(
             detected_device_types, shows_folder, manager, log_q
         )
