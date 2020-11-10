@@ -54,7 +54,7 @@ def run(info: dict, p_config: dict):
       result_q is a proxy to a Queue where filename information is pushed so another thread can organize the files into the correct folder
       log_q is a queue to place log messages
       shows_folder is a path to the folder that contains the commands to run for every device type
-      shows_cache is a dict with a cached list of shows for each device_type
+      jobfile_cache is a dict with a cached list of commands for each device_type
     """
     mode = p_config["mode"]
     log_q = p_config["log_queue"]
@@ -62,14 +62,14 @@ def run(info: dict, p_config: dict):
     shows_folder = p_config["shows_folder"]
     host = info["host"]
     device_type = info["device_type"]
-    shows_cache = p_config["shows_cache"]
+    jobfile_cache = p_config["jobfile_cache"]
     log_q.put(f"warning running - {host}")
     nm_logger = logging.getLogger("netmiko")
     nm_logger.removeHandler(nm_logger.handlers[0])
-    if shows_cache is not None:
-        if device_type in shows_cache:
+    if jobfile_cache is not None:
+        if device_type in jobfile_cache:
             log_q.put(f"debug show cache hit device_type: {device_type}")
-            shows = shows_cache[device_type]
+            shows = jobfile_cache[device_type]
         else:
             log_q.put(f"debug show cache miss: device_type: {device_type}")
             shows = load_shows_from_file(shows_folder / f"shows_{device_type}.txt")
@@ -301,6 +301,8 @@ def main():
     log_q.put("warning Copyright Andrew Piroli 2019-2020")
     log_q.put("warning MIT License")
     log_q.put("warning ")
+    selected_mode = OperatingModes.YeetMode if args.yeet else OperatingModes.YoinkMode
+    log_q.put(f"warning Running in operating mode: {selected_mode}")
     NUM_THREADS_MAX = 10
     if args.threads:
         try:
@@ -333,12 +335,12 @@ def main():
         preloaded_shows = None
     result_q = manager.Queue()
     p_config = {
-        "mode": OperatingModes.YoinkMode,
+        "mode": selected_mode,
         "result_queue": result_q,
         "shows_folder": shows_folder,
         "log_queue": log_q,
         "netmiko_debug": netmiko_debug_file,
-        "shows_cache": preloaded_shows,
+        "jobfile_cache": preloaded_shows,
     }
     org_thread_joined_flag = False
     organization_thread = threading.Thread(
