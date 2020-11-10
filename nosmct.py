@@ -227,19 +227,6 @@ def organize(file_list: BaseProxy, log_q: BaseProxy, joined_flag: Callable[[], b
             log_q.put(f"debug Organize thread: finally: os.chdir({original_dir})")
 
 
-def preload_inventory(filename: pathlib.Path, log_q: BaseProxy) -> frozenset:
-    """
-    Read the entire config file, and record the unique device_types. Used for seeing what we can preload from the show files.
-    """
-    device_types = set()
-    for entry in read_config(filename, log_q):
-        if entry["device_type"]:
-            device_types.add(entry["device_type"])
-        else:
-            log_q.put("warning: preload_config: config entry with no device_type")
-    return frozenset(device_types)
-
-
 def preload_jobfile(
     jobfile: pathlib.Path,
     manager: mp.Manager,
@@ -378,7 +365,6 @@ def main():
     else:
         netmiko_debug_file = None
     if not args.no_preload:
-        detected_device_types = preload_inventory(args.inventory, log_q)
         preloaded_shows = preload_jobfile(args.jobfile, manager, log_q)
     else:
         preloaded_shows = None
