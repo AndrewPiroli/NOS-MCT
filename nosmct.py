@@ -16,6 +16,12 @@ from typing import Iterator, Callable
 from multiprocessing.managers import BaseProxy
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
+from enum import Enum, auto
+
+
+class OperatingModes(Enum):
+    YeetMode = auto()  # We are sending configurations to the devices
+    YoinkMode = auto()  # We are pulling configurations/status from the devices
 
 
 def mk_logger(q: BaseProxy, level: int, kill_flag: Callable[[], bool]):
@@ -48,29 +54,25 @@ def run(info: dict, p_config: dict):
       result_q is a proxy to a Queue where filename information is pushed so another thread can organize the files into the correct folder
       log_q is a queue to place log messages
       shows_folder is a path to the folder that contains the commands to run for every device type
-      shows_cache is a dict with a cached list of shows for each device_type
+      jobfile_cache is a dict with a cached list of commands for each device_type
     """
+    mode = p_config["mode"]
     log_q = p_config["log_queue"]
     result_q = p_config["result_queue"]
-    shows_folder = p_config["shows_folder"]
     host = info["host"]
     device_type = info["device_type"]
-    shows_cache = p_config["shows_cache"]
+    jobfile = p_config["jobfile"]
+    jobfile_cache = p_config["jobfile_cache"]
     log_q.put(f"warning running - {host}")
     nm_logger = logging.getLogger("netmiko")
     nm_logger.removeHandler(nm_logger.handlers[0])
-    if shows_cache is not None:
-        if device_type in shows_cache:
-            log_q.put(f"debug show cache hit device_type: {device_type}")
-            shows = shows_cache[device_type]
-        else:
-            log_q.put(f"debug show cache miss: device_type: {device_type}")
-            shows = load_shows_from_file(device_type, shows_folder)
+    if jobfile_cache is not None:
+        jobfile = jobfile_cache
     else:
         log_q.put(
             f"debug Caching is disabled: load shows from file: device_type: {device_type}"
         )
-        shows = load_shows_from_file(device_type, shows_folder)
+        jobfile = load_shows_from_file(jobfile)
     if p_config["netmiko_debug"] is not None:
         nm_logger.setLevel(logging.DEBUG)
         nm_log_fh = logging.FileHandler(
@@ -84,16 +86,29 @@ def run(info: dict, p_config: dict):
         connection.enable()
         hostname = connection.find_prompt().split("#")[0]
         log_q.put(f"debug run: Found hostname: {hostname} for {host}")
-        for show in shows:
-            filename = create_filename(hostname, show)
+        if mode == OperatingModes.YoinkMode:
+            for show in jobfile:
+                filename = create_filename(hostname, show)
+                log_q.put(f"debug run: Got filename: {filename} for {host}")
+                try:
+                    with open(filename, "w") as output_file:
+                        output_file.write(connection.send_command(show))
+                    result_q.put(f"{hostname} {filename}")
+                except Exception as e:
+                    log_q.put(f"warning Error writing show for {hostname}!")
+                    log_q.put(f"debug {str(e)}")
+        else:  # mode == OperatingModes.YeetMode
+            filename = create_filename(hostname, "configset")
             log_q.put(f"debug run: Got filename: {filename} for {host}")
             try:
-                with open(filename, "w") as show_file:
-                    show_file.write(connection.send_command(show))
+                with open(filename, "w") as output_file:
+                    output_file.write(connection.send_config_set(jobfile))
                 result_q.put(f"{hostname} {filename}")
             except Exception as e:
                 log_q.put(f"warning Error writing show for {hostname}!")
                 log_q.put(f"debug {str(e)}")
+            finally:
+                connection.save_config()
     log_q.put(f"warning finished -  {host}")
 
 
@@ -117,12 +132,11 @@ def set_dir(name: str, log_q: BaseProxy):
         )
 
 
-def load_shows_from_file(device_type: str, shows_folder: pathlib.Path) -> Iterator[str]:
+def load_shows_from_file(filename: pathlib.Path) -> Iterator[str]:
     """
     Generator to pull in shows for a given device type
     """
-    show_file_list = shows_folder / f"shows_{device_type}.txt"
-    with open(show_file_list, "r", newline="",) as show_list:
+    with open(filename, "r", newline="",) as show_list:
         for show_entry in show_list:
             yield show_entry.strip()
 
@@ -209,7 +223,7 @@ def organize(file_list: BaseProxy, log_q: BaseProxy, joined_flag: Callable[[], b
             log_q.put(f"debug Organize thread: finally: os.chdir({original_dir})")
 
 
-def preload_config(filename: pathlib.Path, log_q: BaseProxy) -> frozenset:
+def preload_inventory(filename: pathlib.Path, log_q: BaseProxy) -> frozenset:
     """
     Read the entire config file, and record the unique device_types. Used for seeing what we can preload from the show files.
     """
@@ -222,35 +236,43 @@ def preload_config(filename: pathlib.Path, log_q: BaseProxy) -> frozenset:
     return frozenset(device_types)
 
 
-def preload_shows(
-    device_types: frozenset,
-    shows_dir: pathlib.Path,
-    manager: mp.Manager,
-    log_q: BaseProxy,
+def preload_jobfile(
+    jobfile: pathlib.Path, manager: mp.Manager, log_q: BaseProxy,
 ) -> BaseProxy:
     """
     Load all of the show files beforehand and put them in a Proxied dict. This lets each process grab the list from memory than spending disk IOPS on it
     """
-    result = manager.dict()
-    for device_type in device_types:
-        if device_type in result:
-            continue
-        result[device_type] = list(load_shows_from_file(device_type, shows_dir))
-        log_q.put(f"debug Added {device_type} to show cache")
+    result = manager.list()
+    result = list(load_shows_from_file(jobfile))
+    log_q.put(f"debug Added {jobfile} to cache")
     return result
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--config", help="The configuration file to load.")
-    parser.add_argument(
-        "-t", "--threads", help="The number of devices to connect to at once."
+    mode_selection = parser.add_mutually_exclusive_group(required=True)
+    mode_selection.add_argument(
+        "--yeet", action="store_true", help="Yeet mode, push configurations to NOS",
+    )
+    mode_selection.add_argument(
+        "--yoink", action="store_true", help="Yoink mode, pull configurations from NOS",
     )
     parser.add_argument(
-        "-f",
-        "--force",
-        help="Allow setting NUM_THREADS to stupid levels",
+        "-i", "--inventory", help="The inventory file to load.", required=True
+    )
+    parser.add_argument(
+        "-j",
+        "--jobfile",
+        help="The file containing commands to send to the NOS",
+        required=True,
+    )
+    parser.add_argument(
+        "--confirm-yeet",
+        help="Bypass confirmation prompt for yeet mode",
         action="store_true",
+    )
+    parser.add_argument(
+        "-t", "--threads", help="The number of devices to connect to at once."
     )
     parser.add_argument(
         "--debug-netmiko",
@@ -284,6 +306,38 @@ def main():
     log_q.put("warning Copyright Andrew Piroli 2019-2020")
     log_q.put("warning MIT License")
     log_q.put("warning ")
+    selected_mode = OperatingModes.YeetMode if args.yeet else OperatingModes.YoinkMode
+    log_q.put(f"warning Running in operating mode: {selected_mode}")
+    if selected_mode == OperatingModes.YeetMode and not args.confirm_yeet:
+        log_q.put("critical YeetMode selected without confirmation")
+        sleep(0.5)  # Time for log message
+        attempt = 1
+        die = False
+        while True:
+            if die:
+                log_q.put("critical YeetMode run aborted due to user confirmation")
+                log_thread_killed_flag = True
+                sleep(1.5)  # Time for thread to die
+                import sys
+
+                sys.exit()
+            response = (
+                input(
+                    f"Attempt: {attempt} of 5. Do you confirm you are in yeet (config SEND) mode? [y/N]: "
+                )
+                .strip()
+                .lower()
+            )
+            if response.startswith("y"):
+                break
+            if response.startswith("n"):
+                die = True
+            else:
+                attempt += 1
+                if attempt > 5:
+                    die = True
+    elif selected_mode == OperatingModes.YoinkMode and args.confirm_yeet:
+        log_q.put("warning confirm-yeet option has no effect in YoinkMode")
     NUM_THREADS_MAX = 10
     if args.threads:
         try:
@@ -292,23 +346,15 @@ def main():
                 raise RuntimeError(
                     f"User input: {NUM_THREADS_MAX} - below 1, can not create less than 1 processes."
                 )
-            if NUM_THREADS_MAX > 25:
-                if not args.force:
-                    raise RuntimeError(
-                        f"User input: {NUM_THREADS_MAX} - over limit and no force flag detected - refusing to create a stupid amount of processes"
-                    )
         except (ValueError, RuntimeError) as err:
             log_q.put(
                 "critical NUM_THREADS out of range: setting to default value of 10"
             )
             log_q.put(f"debug {repr(err)}")
             NUM_THREADS_MAX = 10
-    if not args.config:
-        args.config = abspath("nosmct.default.config")
-    else:
-        args.config = abspath(args.config)
-    config = read_config(abspath(args.config), log_q)
-    shows_folder = abspath(".") / "shows"
+    args.inventory = abspath(args.inventory)
+    config = read_config(abspath(args.inventory), log_q)
+    args.jobfile = abspath(args.jobfile)
     set_dir("Output", log_q)
     set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"), log_q)
     if args.debug_netmiko:
@@ -316,19 +362,18 @@ def main():
     else:
         netmiko_debug_file = None
     if not args.no_preload:
-        detected_device_types = preload_config(args.config, log_q)
-        preloaded_shows = preload_shows(
-            detected_device_types, shows_folder, manager, log_q
-        )
+        detected_device_types = preload_inventory(args.inventory, log_q)
+        preloaded_shows = preload_jobfile(args.jobfile, manager, log_q)
     else:
         preloaded_shows = None
     result_q = manager.Queue()
     p_config = {
+        "mode": selected_mode,
         "result_queue": result_q,
-        "shows_folder": shows_folder,
         "log_queue": log_q,
         "netmiko_debug": netmiko_debug_file,
-        "shows_cache": preloaded_shows,
+        "jobfile": args.jobfile,
+        "jobfile_cache": preloaded_shows,
     }
     org_thread_joined_flag = False
     organization_thread = threading.Thread(
