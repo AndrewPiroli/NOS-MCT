@@ -13,14 +13,17 @@ Designed for minimal configuration, few dependencies, and fast deployment either
 
 ## Configuration:
 
-By defualt, configuration is loaded from "nosmct.default.config" in the same directory as the script.
+A device inventory is passed with -i/--inventory
 
-A different config can be loaded through the --config or -c command line option.
-
-The config file is in CSV format with a header and 5 fields, hostname or ip, username, password, secret, device_type
+The inventory file is in CSV format with a header and 5 fields, hostname or ip, username, password, secret, device_type
 
 The device_type field must match a netmiko device_type
 
-Commands must be provided in a file in the shows directory with the naming convention of "shows_{device_type}.txt" A sample for the cisco_ios and cisco_ios_telnet are provided.
+Select operating mode with --yeet/--yoink and provide a jobfile with -j/--jobfile
+
+The jobfile is a simple text file with commands in it.
+
+In Yoink mode, the commands are run one by one in exec mode (for Cisco, other NOS will use their equivalent) and the output is saved per command.
+In Yeet mode, the commands are sent all at once as a config set to be ran sequentially in config mode (or other NOS equivalent), a log of the commands run and any output is saved.
 
 A list of supported device types can be found [here](./PLATFORMS.md)
