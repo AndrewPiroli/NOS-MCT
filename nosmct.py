@@ -224,9 +224,7 @@ def preload_inventory(filename: pathlib.Path, log_q: BaseProxy) -> frozenset:
 
 
 def preload_jobfile(
-    jobfile: pathlib.Path,
-    manager: mp.Manager,
-    log_q: BaseProxy,
+    jobfile: pathlib.Path, manager: mp.Manager, log_q: BaseProxy,
 ) -> BaseProxy:
     """
     Load all of the show files beforehand and put them in a Proxied dict. This lets each process grab the list from memory than spending disk IOPS on it
@@ -317,9 +315,7 @@ def main():
         netmiko_debug_file = None
     if not args.no_preload:
         detected_device_types = preload_inventory(args.inventory, log_q)
-        preloaded_shows = preload_jobfile(
-            args.jobfile, manager, log_q
-        )
+        preloaded_shows = preload_jobfile(args.jobfile, manager, log_q)
     else:
         preloaded_shows = None
     result_q = manager.Queue()
