@@ -366,14 +366,8 @@ def main():
     args.jobfile = abspath(args.jobfile)
     set_dir("Output", log_q)
     set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"), log_q)
-    if args.debug_netmiko:
-        netmiko_debug_file = abspath(".") / "netmiko."
-    else:
-        netmiko_debug_file = None
-    if not args.no_preload:
-        preloaded_shows = preload_jobfile(args.jobfile, manager, log_q)
-    else:
-        preloaded_shows = None
+    netmiko_debug_file = abspath(".") / "netmiko." if args.debug_netmiko else None
+    preloaded_shows = preload_jobfile(args.jobfile, manager, log_q) if not args.no_preload else None
     result_q = manager.Queue()
     p_config = {
         "mode": selected_mode,
