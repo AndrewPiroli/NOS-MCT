@@ -215,7 +215,7 @@ def organize(file_list: BaseProxy, log_q: BaseProxy, joined_flag: Callable[[], b
             log_q.put(f"debug Organize thread: finally: os.chdir({original_dir})")
 
 
-def preload_config(filename: pathlib.Path, log_q: BaseProxy) -> frozenset:
+def preload_inventory(filename: pathlib.Path, log_q: BaseProxy) -> frozenset:
     """
     Read the entire config file, and record the unique device_types. Used for seeing what we can preload from the show files.
     """
@@ -228,7 +228,7 @@ def preload_config(filename: pathlib.Path, log_q: BaseProxy) -> frozenset:
     return frozenset(device_types)
 
 
-def preload_shows(
+def preload_jobfile(
     device_types: frozenset,
     shows_dir: pathlib.Path,
     manager: mp.Manager,
@@ -319,7 +319,8 @@ def main():
             NUM_THREADS_MAX = 10
     args.inventory = abspath(args.inventory)
     config = read_config(abspath(args.inventory), log_q)
-    shows_folder = abspath(".") / "shows"
+    #shows_folder = abspath(".") / "shows"
+    args.jobfile = abspath(args.jobfile)
     set_dir("Output", log_q)
     set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"), log_q)
     if args.debug_netmiko:
@@ -327,8 +328,8 @@ def main():
     else:
         netmiko_debug_file = None
     if not args.no_preload:
-        detected_device_types = preload_config(args.inventory, log_q)
-        preloaded_shows = preload_shows(
+        detected_device_types = preload_inventory(args.inventory, log_q)
+        preloaded_shows = preload_jobfile(
             detected_device_types, shows_folder, manager, log_q
         )
     else:
