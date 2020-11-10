@@ -86,12 +86,23 @@ def run(info: dict, p_config: dict):
         connection.enable()
         hostname = connection.find_prompt().split("#")[0]
         log_q.put(f"debug run: Found hostname: {hostname} for {host}")
-        for show in jobfile:
-            filename = create_filename(hostname, show)
+        if mode == OperatingModes.YoinkMode:
+            for show in jobfile:
+                filename = create_filename(hostname, show)
+                log_q.put(f"debug run: Got filename: {filename} for {host}")
+                try:
+                    with open(filename, "w") as output_file:
+                        output_file.write(connection.send_command(show))
+                    result_q.put(f"{hostname} {filename}")
+                except Exception as e:
+                    log_q.put(f"warning Error writing show for {hostname}!")
+                    log_q.put(f"debug {str(e)}")
+        else:  # mode == OperatingModes.YeetMode
+            filename = create_filename(hostname, "configset")
             log_q.put(f"debug run: Got filename: {filename} for {host}")
             try:
-                with open(filename, "w") as show_file:
-                    show_file.write(connection.send_command(show))
+                with open(filename, "w") as output_file:
+                    output_file.write(connection.send_config_set(jobfile))
                 result_q.put(f"{hostname} {filename}")
             except Exception as e:
                 log_q.put(f"warning Error writing show for {hostname}!")
