@@ -234,7 +234,9 @@ def preload_shows(
     for device_type in device_types:
         if device_type in result:
             continue
-        result[device_type] = list(load_shows_from_file(shows_dir / f"shows_{device_type}.txt"))
+        result[device_type] = list(
+            load_shows_from_file(shows_dir / f"shows_{device_type}.txt")
+        )
         log_q.put(f"debug Added {device_type} to show cache")
     return result
 
