@@ -16,6 +16,12 @@ from typing import Iterator, Callable
 from multiprocessing.managers import BaseProxy
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler
+from enum import Enum, auto
+
+
+class OperatingModes(Enum):
+    YeetMode = auto()  # We are sending configurations to the devices
+    YoinkMode = auto()  # We are pulling configurations/status from the devices
 
 
 def mk_logger(q: BaseProxy, level: int, kill_flag: Callable[[], bool]):
@@ -50,6 +56,7 @@ def run(info: dict, p_config: dict):
       shows_folder is a path to the folder that contains the commands to run for every device type
       shows_cache is a dict with a cached list of shows for each device_type
     """
+    mode = p_config["mode"]
     log_q = p_config["log_queue"]
     result_q = p_config["result_queue"]
     shows_folder = p_config["shows_folder"]
@@ -314,6 +321,7 @@ def main():
         preloaded_shows = None
     result_q = manager.Queue()
     p_config = {
+        "mode": OperatingModes.YoinkMode,
         "result_queue": result_q,
         "shows_folder": shows_folder,
         "log_queue": log_q,
