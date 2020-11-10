@@ -48,12 +48,12 @@ def create_filename(hostname: str, filename: str) -> str:
 def run(info: dict, p_config: dict):
     """
     Worker thread running in process
-    Responsible for creating the connection to the device, finding the hostname, running the shows, and saving them to the current directory.
+    Responsible for creating the connection to the device, finding the hostname, running the jobs, and saving them to the current directory.
     info dict contains device information like ip/hostname, device type, and login details
     p_config dictionary contains configuration info on how the function itself should operate. It contains:
       result_q is a proxy to a Queue where filename information is pushed so another thread can organize the files into the correct folder
       log_q is a queue to place log messages
-      shows_folder is a path to the folder that contains the commands to run for every device type
+      jobfile is the path to the jobfile incase it's not already loaded
       jobfile_cache is a dict with a cached list of commands for each device_type
     """
     mode = p_config["mode"]
@@ -70,9 +70,9 @@ def run(info: dict, p_config: dict):
         jobfile = jobfile_cache
     else:
         log_q.put(
-            f"debug Caching is disabled: load shows from file: device_type: {device_type}"
+            f"debug Caching is disabled: load jobs from file: device_type: {device_type}"
         )
-        jobfile = load_shows_from_file(jobfile)
+        jobfile = load_jobfile(jobfile)
     if p_config["netmiko_debug"] is not None:
         nm_logger.setLevel(logging.DEBUG)
         nm_log_fh = logging.FileHandler(
@@ -87,15 +87,15 @@ def run(info: dict, p_config: dict):
         hostname = connection.find_prompt().split("#")[0]
         log_q.put(f"debug run: Found hostname: {hostname} for {host}")
         if mode == OperatingModes.YoinkMode:
-            for show in jobfile:
-                filename = create_filename(hostname, show)
+            for cmd in jobfile:
+                filename = create_filename(hostname, cmd)
                 log_q.put(f"debug run: Got filename: {filename} for {host}")
                 try:
                     with open(filename, "w") as output_file:
-                        output_file.write(connection.send_command(show))
+                        output_file.write(connection.send_command(cmd))
                     result_q.put(f"{hostname} {filename}")
                 except Exception as e:
-                    log_q.put(f"warning Error writing show for {hostname}!")
+                    log_q.put(f"warning Error writing output file for {hostname}!")
                     log_q.put(f"debug {str(e)}")
         else:  # mode == OperatingModes.YeetMode
             filename = create_filename(hostname, "configset")
@@ -105,7 +105,7 @@ def run(info: dict, p_config: dict):
                     output_file.write(connection.send_config_set(jobfile))
                 result_q.put(f"{hostname} {filename}")
             except Exception as e:
-                log_q.put(f"warning Error writing show for {hostname}!")
+                log_q.put(f"warning Error writing output file for {hostname}!")
                 log_q.put(f"debug {str(e)}")
             finally:
                 connection.save_config()
@@ -132,13 +132,14 @@ def set_dir(name: str, log_q: BaseProxy):
         )
 
 
-def load_shows_from_file(filename: pathlib.Path) -> Iterator[str]:
-    """
-    Generator to pull in shows for a given device type
-    """
-    with open(filename, "r", newline="",) as show_list:
-        for show_entry in show_list:
-            yield show_entry.strip()
+def load_jobfile(filename: pathlib.Path) -> Iterator[str]:
+    with open(
+        filename,
+        "r",
+        newline="",
+    ) as joblist:
+        for job_entry in joblist:
+            yield job_entry.strip()
 
 
 def read_config(filename: pathlib.Path, log_q: BaseProxy) -> Iterator[dict]:
@@ -158,7 +159,7 @@ def read_config(filename: pathlib.Path, log_q: BaseProxy) -> Iterator[dict]:
 
 def organize(file_list: BaseProxy, log_q: BaseProxy, joined_flag: Callable[[], bool]):
     """
-    Responsible for taking the list of filenames of shows, creating folders, and renaming the shows into the correct folder.
+    Responsible for taking the list of filenames of jobs, creating folders, and renaming the job into the correct folder.
 
     Process:
 
@@ -201,61 +202,54 @@ def organize(file_list: BaseProxy, log_q: BaseProxy, joined_flag: Callable[[], b
                 return
             continue
         original_dir = abspath(".")
-        show_entry = item.split(" ")
-        show_entry_hostname = show_entry[0]
-        show_entry_filename = show_entry[1]
+        job_entry = item.split(" ")
+        job_entry_hostname = job_entry[0]
+        job_entry_filename = job_entry[1]
         log_q.put(
-            f"debug Organize thread: show_entry_hostname: {show_entry_hostname} show_entry_filename: {show_entry_filename}"
+            f"debug Organize thread: job_entry_hostname: {job_entry_hostname} job_entry_filename: {job_entry_filename}"
         )
         try:
-            destination = show_entry_filename.replace(f"{show_entry_hostname}_", "")
+            destination = job_entry_filename.replace(f"{job_entry_hostname}_", "")
             log_q.put(f"debug Organize thread: destination: {destination}")
-            set_dir(show_entry_hostname, log_q)
-            shutil.move(f"../{show_entry_filename}", f"./{destination}")
+            set_dir(job_entry_hostname, log_q)
+            shutil.move(f"../{job_entry_filename}", f"./{destination}")
             log_q.put(
-                f"debug Organize thread: shutil.move(../{show_entry_filename}, ./{destination}"
+                f"debug Organize thread: shutil.move(../{job_entry_filename}, ./{destination}"
             )
         except Exception as e:
-            log_q.put(f"warning Error organizing {show_entry_filename}: {e}")
+            log_q.put(f"warning Error organizing {job_entry_filename}: {e}")
             continue
         finally:
             os.chdir(original_dir)
             log_q.put(f"debug Organize thread: finally: os.chdir({original_dir})")
 
 
-def preload_inventory(filename: pathlib.Path, log_q: BaseProxy) -> frozenset:
-    """
-    Read the entire config file, and record the unique device_types. Used for seeing what we can preload from the show files.
-    """
-    device_types = set()
-    for entry in read_config(filename, log_q):
-        if entry["device_type"]:
-            device_types.add(entry["device_type"])
-        else:
-            log_q.put("warning: preload_config: config entry with no device_type")
-    return frozenset(device_types)
-
-
 def preload_jobfile(
-    jobfile: pathlib.Path, manager: mp.Manager, log_q: BaseProxy,
+    jobfile: pathlib.Path,
+    manager: mp.Manager,
+    log_q: BaseProxy,
 ) -> BaseProxy:
     """
-    Load all of the show files beforehand and put them in a Proxied dict. This lets each process grab the list from memory than spending disk IOPS on it
+    Load the job file beforehand and put them in a Proxied list. This lets each process grab the list from memory than spending disk IOPS on it
     """
     result = manager.list()
-    result = list(load_shows_from_file(jobfile))
+    result = list(load_jobfile(jobfile))
     log_q.put(f"debug Added {jobfile} to cache")
     return result
 
 
-def main():
+def handle_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     mode_selection = parser.add_mutually_exclusive_group(required=True)
     mode_selection.add_argument(
-        "--yeet", action="store_true", help="Yeet mode, push configurations to NOS",
+        "--yeet",
+        action="store_true",
+        help="Yeet mode, push configurations to NOS",
     )
     mode_selection.add_argument(
-        "--yoink", action="store_true", help="Yoink mode, pull configurations from NOS",
+        "--yoink",
+        action="store_true",
+        help="Yoink mode, pull configurations from NOS",
     )
     parser.add_argument(
         "-i", "--inventory", help="The inventory file to load.", required=True
@@ -280,7 +274,9 @@ def main():
         action="store_true",
     )
     parser.add_argument(
-        "--no-preload", help="Disable caching for config files.", action="store_true",
+        "--no-preload",
+        help="Disable caching for config files.",
+        action="store_true",
     )
     output_config = parser.add_mutually_exclusive_group(required=False)
     output_config.add_argument(
@@ -289,7 +285,40 @@ def main():
     output_config.add_argument(
         "-v", "--verbose", help="Enable verbose output", action="store_true"
     )
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def confirm_yeet(mode: OperatingModes, confirmed: bool, log_q: BaseProxy) -> bool:
+    """
+    Yeeting configs onto the device is a dangerous op, make sure they know what they are doing so I feel a little better.
+    """
+    if mode == OperatingModes.YeetMode and not confirmed:
+        log_q.put("critical YeetMode selected without confirmation")
+        sleep(0.5)  # Time for log message
+        attempt = 1
+        while True:
+            response = (
+                input(
+                    f"Attempt: {attempt} of 5. Do you confirm you are in yeet (config SEND) mode? [y/N]: "
+                )
+                .strip()
+                .lower()
+            )
+            if response.startswith("y"):
+                break
+            if response.startswith("n"):
+                return False
+            else:
+                attempt += 1
+                if attempt > 5:
+                    return False
+    elif mode == OperatingModes.YoinkMode and confirmed:
+        log_q.put("warning confirm-yeet option has no effect in YoinkMode")
+    return True
+
+
+def main():
+    args = handle_arguments()
     start = dtime.datetime.now()
     log_level = logging.WARNING
     if args.quiet:
@@ -308,36 +337,13 @@ def main():
     log_q.put("warning ")
     selected_mode = OperatingModes.YeetMode if args.yeet else OperatingModes.YoinkMode
     log_q.put(f"warning Running in operating mode: {selected_mode}")
-    if selected_mode == OperatingModes.YeetMode and not args.confirm_yeet:
-        log_q.put("critical YeetMode selected without confirmation")
-        sleep(0.5)  # Time for log message
-        attempt = 1
-        die = False
-        while True:
-            if die:
-                log_q.put("critical YeetMode run aborted due to user confirmation")
-                log_thread_killed_flag = True
-                sleep(1.5)  # Time for thread to die
-                import sys
+    if not confirm_yeet(selected_mode, args.confirm_yeet, log_q):
+        log_q.put("critical Aborting due to yeeting without consent.")
+        log_thread_killed_flag = True
+        sleep(1.5)
+        import sys
 
-                sys.exit()
-            response = (
-                input(
-                    f"Attempt: {attempt} of 5. Do you confirm you are in yeet (config SEND) mode? [y/N]: "
-                )
-                .strip()
-                .lower()
-            )
-            if response.startswith("y"):
-                break
-            if response.startswith("n"):
-                die = True
-            else:
-                attempt += 1
-                if attempt > 5:
-                    die = True
-    elif selected_mode == OperatingModes.YoinkMode and args.confirm_yeet:
-        log_q.put("warning confirm-yeet option has no effect in YoinkMode")
+        sys.exit()
     NUM_THREADS_MAX = 10
     if args.threads:
         try:
@@ -357,15 +363,8 @@ def main():
     args.jobfile = abspath(args.jobfile)
     set_dir("Output", log_q)
     set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"), log_q)
-    if args.debug_netmiko:
-        netmiko_debug_file = abspath(".") / "netmiko."
-    else:
-        netmiko_debug_file = None
-    if not args.no_preload:
-        detected_device_types = preload_inventory(args.inventory, log_q)
-        preloaded_shows = preload_jobfile(args.jobfile, manager, log_q)
-    else:
-        preloaded_shows = None
+    netmiko_debug_file = abspath(".") / "netmiko." if args.debug_netmiko else None
+    preloaded_jobfile = preload_jobfile(args.jobfile, manager, log_q) if not args.no_preload else None
     result_q = manager.Queue()
     p_config = {
         "mode": selected_mode,
@@ -373,7 +372,7 @@ def main():
         "log_queue": log_q,
         "netmiko_debug": netmiko_debug_file,
         "jobfile": args.jobfile,
-        "jobfile_cache": preloaded_shows,
+        "jobfile_cache": preloaded_jobfile,
     }
     org_thread_joined_flag = False
     organization_thread = threading.Thread(
