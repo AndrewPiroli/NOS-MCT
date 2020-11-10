@@ -250,13 +250,21 @@ def preload_shows(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--inventory", help="The inventory file to load.")
     mode_selection = parser.add_mutually_exclusive_group(required=True)
     mode_selection.add_argument(
         "--yeet", action="store_true", help="Yeet mode, push configurations to NOS",
     )
     mode_selection.add_argument(
         "--yoink", action="store_true", help="Yoink mode, pull configurations from NOS",
+    )
+    parser.add_argument(
+        "-i", "--inventory", help="The inventory file to load.", required=True
+    )
+    parser.add_argument(
+        "-j",
+        "--jobfile",
+        help="The file containing commands to send to the NOS",
+        required=True,
     )
     parser.add_argument(
         "-t", "--threads", help="The number of devices to connect to at once."
@@ -307,10 +315,7 @@ def main():
             )
             log_q.put(f"debug {repr(err)}")
             NUM_THREADS_MAX = 10
-    if not args.inventory:
-        args.inventory = abspath("nosmct.default.config")
-    else:
-        args.inventory = abspath(args.inventory)
+    args.inventory = abspath(args.inventory)
     config = read_config(abspath(args.inventory), log_q)
     shows_folder = abspath(".") / "shows"
     set_dir("Output", log_q)
