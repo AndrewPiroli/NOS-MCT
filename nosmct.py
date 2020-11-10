@@ -308,7 +308,6 @@ def main():
             NUM_THREADS_MAX = 10
     args.inventory = abspath(args.inventory)
     config = read_config(abspath(args.inventory), log_q)
-    #shows_folder = abspath(".") / "shows"
     args.jobfile = abspath(args.jobfile)
     set_dir("Output", log_q)
     set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"), log_q)
