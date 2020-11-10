@@ -136,7 +136,11 @@ def load_shows_from_file(filename: pathlib.Path) -> Iterator[str]:
     """
     Generator to pull in shows for a given device type
     """
-    with open(filename, "r", newline="",) as show_list:
+    with open(
+        filename,
+        "r",
+        newline="",
+    ) as show_list:
         for show_entry in show_list:
             yield show_entry.strip()
 
@@ -237,7 +241,9 @@ def preload_inventory(filename: pathlib.Path, log_q: BaseProxy) -> frozenset:
 
 
 def preload_jobfile(
-    jobfile: pathlib.Path, manager: mp.Manager, log_q: BaseProxy,
+    jobfile: pathlib.Path,
+    manager: mp.Manager,
+    log_q: BaseProxy,
 ) -> BaseProxy:
     """
     Load all of the show files beforehand and put them in a Proxied dict. This lets each process grab the list from memory than spending disk IOPS on it
@@ -248,14 +254,18 @@ def preload_jobfile(
     return result
 
 
-def main():
+def handle_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     mode_selection = parser.add_mutually_exclusive_group(required=True)
     mode_selection.add_argument(
-        "--yeet", action="store_true", help="Yeet mode, push configurations to NOS",
+        "--yeet",
+        action="store_true",
+        help="Yeet mode, push configurations to NOS",
     )
     mode_selection.add_argument(
-        "--yoink", action="store_true", help="Yoink mode, pull configurations from NOS",
+        "--yoink",
+        action="store_true",
+        help="Yoink mode, pull configurations from NOS",
     )
     parser.add_argument(
         "-i", "--inventory", help="The inventory file to load.", required=True
@@ -280,7 +290,9 @@ def main():
         action="store_true",
     )
     parser.add_argument(
-        "--no-preload", help="Disable caching for config files.", action="store_true",
+        "--no-preload",
+        help="Disable caching for config files.",
+        action="store_true",
     )
     output_config = parser.add_mutually_exclusive_group(required=False)
     output_config.add_argument(
@@ -289,7 +301,11 @@ def main():
     output_config.add_argument(
         "-v", "--verbose", help="Enable verbose output", action="store_true"
     )
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main():
+    args = handle_arguments()
     start = dtime.datetime.now()
     log_level = logging.WARNING
     if args.quiet:
