@@ -1,0 +1,10 @@
+lldp run
+ntp server 192.168.0.1
+line vty 0 4
+exec-timeout 10 0
+login authentication default
+transport preferred none
+line con 0
+exec-timeout 2 30
+login authentication default
+transport preferred none
