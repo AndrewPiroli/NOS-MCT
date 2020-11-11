@@ -1,18 +1,18 @@
-show run  
-show run all  
-show vlan  
-show vlan brief  
-show vtp status  
-show vtp password  
-show start  
-show int trunk  
-show version  
-show spanning-tree  
-show spanning-tree detail  
-show cdp neighbor  
-show cdp neighbor detail  
-show lldp neighbor  
-show lldp neighbor detail  
+show run
+show run all
+show vlan
+show vlan brief
+show vtp status
+show vtp password
+show start
+show int trunk
+show version
+show spanning-tree
+show spanning-tree detail
+show cdp neighbor
+show cdp neighbor detail
+show lldp neighbor
+show lldp neighbor detail
 show interfaces
 show ip interface brief
 show ipv6 interface brief
