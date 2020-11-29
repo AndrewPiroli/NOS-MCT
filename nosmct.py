@@ -9,9 +9,9 @@ import logging
 import mctlogger
 from queue import Empty as QEmptyException
 from time import sleep
-from multiprocessing.managers import BaseProxy
+from typing import Any
 from concurrent.futures import ProcessPoolExecutor
-from netmiko import ConnectHandler
+from netmiko import ConnectHandler  # type: ignore
 from enum import Enum, auto
 from FileOperations import (
     abspath,
@@ -96,8 +96,8 @@ def run(info: dict, p_config: dict):
 
 
 def organize(
-    file_list: BaseProxy,
-    log_q: BaseProxy,
+    file_list: Any,
+    log_q: Any,
 ):
     """
     Responsible for taking the list of filenames of jobs, creating folders, and renaming the job into the correct folder.
@@ -204,7 +204,7 @@ def handle_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def confirm_yeet(mode: OperatingModes, confirmed: bool, log_q: BaseProxy) -> bool:
+def confirm_yeet(mode: OperatingModes, confirmed: bool, log_q: Any) -> bool:
     """
     Yeeting configs onto the device is a dangerous op, make sure they know what they are doing so I feel a little better.
     """

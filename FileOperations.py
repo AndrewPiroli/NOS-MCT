@@ -1,6 +1,5 @@
 import pathlib
-from multiprocessing.managers import BaseProxy
-from typing import Iterator
+from typing import Iterator, List, Any
 import os
 import csv
 
@@ -21,7 +20,7 @@ def create_filename(hostname: str, filename: str) -> str:
     return result
 
 
-def set_dir(name: str, log_q: BaseProxy):
+def set_dir(name: str, log_q: Any):
     """
     Helper function to create (and handle existing) folders and change directory to them automatically.
     """
@@ -51,7 +50,7 @@ def load_jobfile(filename: pathlib.Path) -> Iterator[str]:
             yield job_entry.strip()
 
 
-def read_config(filename: pathlib.Path, log_q: BaseProxy) -> Iterator[dict]:
+def read_config(filename: pathlib.Path, log_q: Any) -> Iterator[dict]:
     """
     Generator function to processes the CSV config file. Handles the various CSV formats and removes headers.
     """
@@ -68,8 +67,8 @@ def read_config(filename: pathlib.Path, log_q: BaseProxy) -> Iterator[dict]:
 
 def preload_jobfile(
     jobfile: pathlib.Path,
-    log_q: BaseProxy,
-) -> BaseProxy:
+    log_q: Any,
+) -> List[str]:
     """
     Load the job file beforehand and put them in a Proxied list. This lets each process grab the list from memory than spending disk IOPS on it
     """
