@@ -278,6 +278,7 @@ def confirm_yeet(mode: OperatingModes, confirmed: bool, log_q: BaseProxy) -> boo
     """
     Yeeting configs onto the device is a dangerous op, make sure they know what they are doing so I feel a little better.
     """
+    ret = True
     if mode == OperatingModes.YeetMode and not confirmed:
         log_q.put("critical YeetMode selected without confirmation")
         sleep(0.5)  # Time for log message
@@ -293,14 +294,14 @@ def confirm_yeet(mode: OperatingModes, confirmed: bool, log_q: BaseProxy) -> boo
             if response.startswith("y"):
                 break
             if response.startswith("n"):
-                return False
+                ret = False
             else:
                 attempt += 1
                 if attempt > 5:
-                    return False
+                    ret = False
     elif mode == OperatingModes.YoinkMode and confirmed:
         log_q.put("warning confirm-yeet option has no effect in YoinkMode")
-    return True
+    return ret
 
 
 def main():
