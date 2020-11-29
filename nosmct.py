@@ -22,6 +22,10 @@ from FileOperations import (
     preload_jobfile,
 )
 
+NUM_THREADS_DEFAULT = (
+    10  # Process pool default size, can be overridden with the --threads option
+)
+
 
 class OperatingModes(Enum):
     YeetMode = auto()  # We are sending configurations to the devices
@@ -43,7 +47,6 @@ def run(info: dict, p_config: dict):
     log_q = p_config["log_queue"]
     result_q = p_config["result_queue"]
     host = info["host"]
-    #device_type = info["device_type"]
     jobfile = p_config["jobfile"]
     jobfile_cache = p_config["jobfile_cache"]
     log_q.put(f"warning running - {host}")
@@ -108,7 +111,7 @@ def organize(
     other_exception_cnt = 0
     while True:
         try:
-            item = file_list.get(block=True, timeout=5)
+            item = file_list.get(block=True, timeout=1)
             if item == "CY-DONE":
                 log_q.put("debug Organize thread recieved done flag, closing thread")
                 return
@@ -210,20 +213,18 @@ def main():
     log_q.put("warning ")
     selected_mode = OperatingModes.YeetMode if args.yeet else OperatingModes.YoinkMode
     log_q.put(f"warning Running in operating mode: {selected_mode}")
-    NUM_THREADS_MAX = 10
-    if args.threads:
-        try:
-            NUM_THREADS_MAX = int(args.threads)
-            if NUM_THREADS_MAX < 1:
-                raise RuntimeError(
-                    f"User input: {NUM_THREADS_MAX} - below 1, can not create less than 1 processes."
-                )
-        except (ValueError, RuntimeError) as err:
-            log_q.put(
-                "critical NUM_THREADS out of range: setting to default value of 10"
+    try:
+        NUM_THREADS = int(args.threads) if args.threads else NUM_THREADS_DEFAULT
+        if NUM_THREADS < 1:
+            raise RuntimeError(
+                f"User input: {NUM_THREADS} - below 1, can not create less than 1 processes."
             )
-            log_q.put(f"debug {repr(err)}")
-            NUM_THREADS_MAX = 10
+    except (ValueError, RuntimeError) as err:
+        log_q.put(
+            f"critical NUM_THREADS out of range: setting to default value of {NUM_THREADS_DEFAULT}"
+        )
+        log_q.put(f"debug {repr(err)}")
+        NUM_THREADS = NUM_THREADS_DEFAULT
     args.inventory = abspath(args.inventory)
     config = read_config(abspath(args.inventory), log_q)
     args.jobfile = abspath(args.jobfile)
@@ -250,7 +251,7 @@ def main():
         ),
     )
     organization_thread.start()
-    with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
+    with ProcessPoolExecutor(max_workers=NUM_THREADS) as ex:
         futures = [ex.submit(run, creds, p_config) for creds in config]
     result_q.put("CY-DONE")
     organization_thread.join()
