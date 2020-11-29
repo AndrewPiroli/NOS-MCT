@@ -2,6 +2,7 @@ import logging
 from multiprocessing.managers import BaseProxy
 from queue import Empty as QEmptyException
 
+
 class mctlogger:
     def __init__(self, incoming_q: BaseProxy, output_level: int):
         self.incoming_q = incoming_q
@@ -28,6 +29,7 @@ class mctlogger:
                     f"Logger: invalid message format recieved: {message}"
                 )
         self.logger.debug("Closing logger!")
+
 
 def helper(incoming_q: BaseProxy, output_level: int):
     mctlogger(incoming_q, output_level).runloop()

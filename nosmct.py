@@ -151,7 +151,10 @@ def read_config(filename: pathlib.Path, log_q: BaseProxy) -> Iterator[dict]:
             yield dict(zip(header, config_entry))
 
 
-def organize(file_list: BaseProxy, log_q: BaseProxy,):
+def organize(
+    file_list: BaseProxy,
+    log_q: BaseProxy,
+):
     """
     Responsible for taking the list of filenames of jobs, creating folders, and renaming the job into the correct folder.
 
@@ -344,7 +347,9 @@ def main():
     set_dir("Output", log_q)
     set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"), log_q)
     netmiko_debug_file = abspath(".") / "netmiko." if args.debug_netmiko else None
-    preloaded_jobfile = preload_jobfile(args.jobfile, manager, log_q) if not args.no_preload else None
+    preloaded_jobfile = (
+        preload_jobfile(args.jobfile, manager, log_q) if not args.no_preload else None
+    )
     result_q = manager.Queue()
     p_config = {
         "mode": selected_mode,
@@ -355,7 +360,11 @@ def main():
         "jobfile_cache": preloaded_jobfile,
     }
     organization_thread = mp.Process(
-        target=organize, args=(result_q, log_q,)
+        target=organize,
+        args=(
+            result_q,
+            log_q,
+        ),
     )
     organization_thread.start()
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
