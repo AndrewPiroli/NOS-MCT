@@ -8,7 +8,6 @@ import csv
 import os
 import logging
 import pathlib
-import threading
 import mctlogger
 from queue import Empty as QEmptyException
 from time import sleep
@@ -22,11 +21,6 @@ from enum import Enum, auto
 class OperatingModes(Enum):
     YeetMode = auto()  # We are sending configurations to the devices
     YoinkMode = auto()  # We are pulling configurations/status from the devices
-
-
-def mk_logger(q: BaseProxy, level: int, kill_flag: Callable[[], bool]):
-    logger = mctlogger.mctlogger(q, {"kill_callback": kill_flag, "output_level": level})
-    logger.runloop()
 
 
 def abspath(name: str) -> pathlib.Path:
@@ -157,7 +151,7 @@ def read_config(filename: pathlib.Path, log_q: BaseProxy) -> Iterator[dict]:
             yield dict(zip(header, config_entry))
 
 
-def organize(file_list: BaseProxy, log_q: BaseProxy, joined_flag: Callable[[], bool]):
+def organize(file_list: BaseProxy, log_q: BaseProxy,):
     """
     Responsible for taking the list of filenames of jobs, creating folders, and renaming the job into the correct folder.
 
@@ -170,26 +164,15 @@ def organize(file_list: BaseProxy, log_q: BaseProxy, joined_flag: Callable[[], b
     5) Move+rename the file from the root dir into the the folder for the hostname
     """
     log_q.put("debug Organize thread starting")
-    empty_count = 0
     other_exception_cnt = 0
     while True:
         try:
-            item = file_list.get(block=True, timeout=1)
+            item = file_list.get(block=True, timeout=5)
             if item == "CY-DONE":
                 log_q.put("debug Organize thread recieved done flag, closing thread")
                 return
             other_exception_cnt = 0
-            empty_count = 0
         except QEmptyException:
-            # The queue being empty is fine, as long as the worker processes haven't finished. so check if the main thread has set the flag before we care abt empty q's
-            if joined_flag():
-                empty_count += 1
-                if empty_count >= 20:
-                    # 20 attempts * 1 second each = 20 seconds with nothing on the queue, safe to say its borked somehow
-                    log_q.put(
-                        "critical ERROR: Queue is empty but thread still running, killing self now!"
-                    )
-                    return
             continue
         except Exception as e:
             log_q.put(f"warning Error pulling from queue: {e}")
@@ -327,11 +310,8 @@ def main():
         log_level = logging.DEBUG
     manager = mp.Manager()
     log_q = manager.Queue()
-    log_thread_killed_flag = False
-    log_thread = threading.Thread(
-        target=mk_logger, args=(log_q, log_level, lambda: log_thread_killed_flag)
-    )
-    log_thread.start()
+    logging_process = mp.Process(target=mctlogger.helper, args=(log_q, log_level))
+    logging_process.start()
     log_q.put("warning Copyright Andrew Piroli 2019-2020")
     log_q.put("warning MIT License")
     log_q.put("warning ")
@@ -339,8 +319,8 @@ def main():
     log_q.put(f"warning Running in operating mode: {selected_mode}")
     if not confirm_yeet(selected_mode, args.confirm_yeet, log_q):
         log_q.put("critical Aborting due to yeeting without consent.")
-        log_thread_killed_flag = True
-        sleep(1.5)
+        log_q.put("die")
+        logging_process.join()
         import sys
 
         sys.exit()
@@ -374,23 +354,21 @@ def main():
         "jobfile": args.jobfile,
         "jobfile_cache": preloaded_jobfile,
     }
-    org_thread_joined_flag = False
-    organization_thread = threading.Thread(
-        target=organize, args=(result_q, log_q, lambda: org_thread_joined_flag)
+    organization_thread = mp.Process(
+        target=organize, args=(result_q, log_q,)
     )
     organization_thread.start()
     with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
-        for creds in config:
-            ex.submit(run, creds, p_config)
+        futures = [ex.submit(run, creds, p_config) for creds in config]
     result_q.put("CY-DONE")
-    org_thread_joined_flag = True
     organization_thread.join()
     os.chdir("..")
     os.chdir("..")
     end = dtime.datetime.now()
     elapsed = (end - start).total_seconds()
     log_q.put(f"warning Time Elapsed: {elapsed}")
-    log_thread_killed_flag = True
+    log_q.put("die")
+    logging_process.join()
 
 
 if __name__ == "__main__":
