@@ -22,6 +22,10 @@ from FileOperations import (
     preload_jobfile,
 )
 
+NUM_THREADS_DEFAULT = (
+    10  # Process pool default size, can be overridden with the --threads option
+)
+
 
 class OperatingModes(Enum):
     YeetMode = auto()  # We are sending configurations to the devices
@@ -43,19 +47,12 @@ def run(info: dict, p_config: dict):
     log_q = p_config["log_queue"]
     result_q = p_config["result_queue"]
     host = info["host"]
-    device_type = info["device_type"]
     jobfile = p_config["jobfile"]
     jobfile_cache = p_config["jobfile_cache"]
     log_q.put(f"warning running - {host}")
     nm_logger = logging.getLogger("netmiko")
     nm_logger.removeHandler(nm_logger.handlers[0])
-    if jobfile_cache is not None:
-        jobfile = jobfile_cache
-    else:
-        log_q.put(
-            f"debug Caching is disabled: load jobs from file: device_type: {device_type}"
-        )
-        jobfile = load_jobfile(jobfile)
+    jobfile = jobfile_cache if jobfile_cache is not None else load_jobfile(jobfile)
     if p_config["netmiko_debug"] is not None:
         nm_logger.setLevel(logging.DEBUG)
         nm_log_fh = logging.FileHandler(
@@ -114,7 +111,7 @@ def organize(
     other_exception_cnt = 0
     while True:
         try:
-            item = file_list.get(block=True, timeout=5)
+            item = file_list.get(block=True, timeout=1)
             if item == "CY-DONE":
                 log_q.put("debug Organize thread recieved done flag, closing thread")
                 return
@@ -177,11 +174,6 @@ def handle_arguments() -> argparse.Namespace:
         required=True,
     )
     parser.add_argument(
-        "--confirm-yeet",
-        help="Bypass confirmation prompt for yeet mode",
-        action="store_true",
-    )
-    parser.add_argument(
         "-t", "--threads", help="The number of devices to connect to at once."
     )
     parser.add_argument(
@@ -204,36 +196,6 @@ def handle_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def confirm_yeet(mode: OperatingModes, confirmed: bool, log_q: Any) -> bool:
-    """
-    Yeeting configs onto the device is a dangerous op, make sure they know what they are doing so I feel a little better.
-    """
-    ret = True
-    if mode == OperatingModes.YeetMode and not confirmed:
-        log_q.put("critical YeetMode selected without confirmation")
-        sleep(0.5)  # Time for log message
-        attempt = 1
-        while True:
-            response = (
-                input(
-                    f"Attempt: {attempt} of 5. Do you confirm you are in yeet (config SEND) mode? [y/N]: "
-                )
-                .strip()
-                .lower()
-            )
-            if response.startswith("y"):
-                break
-            if response.startswith("n"):
-                ret = False
-            else:
-                attempt += 1
-                if attempt > 5:
-                    ret = False
-    elif mode == OperatingModes.YoinkMode and confirmed:
-        log_q.put("warning confirm-yeet option has no effect in YoinkMode")
-    return ret
-
-
 def main():
     args = handle_arguments()
     start = dtime.datetime.now()
@@ -251,27 +213,18 @@ def main():
     log_q.put("warning ")
     selected_mode = OperatingModes.YeetMode if args.yeet else OperatingModes.YoinkMode
     log_q.put(f"warning Running in operating mode: {selected_mode}")
-    if not confirm_yeet(selected_mode, args.confirm_yeet, log_q):
-        log_q.put("critical Aborting due to yeeting without consent.")
-        log_q.put("die")
-        logging_process.join()
-        import sys
-
-        sys.exit()
-    NUM_THREADS_MAX = 10
-    if args.threads:
-        try:
-            NUM_THREADS_MAX = int(args.threads)
-            if NUM_THREADS_MAX < 1:
-                raise RuntimeError(
-                    f"User input: {NUM_THREADS_MAX} - below 1, can not create less than 1 processes."
-                )
-        except (ValueError, RuntimeError) as err:
-            log_q.put(
-                "critical NUM_THREADS out of range: setting to default value of 10"
+    try:
+        NUM_THREADS = int(args.threads) if args.threads else NUM_THREADS_DEFAULT
+        if NUM_THREADS < 1:
+            raise RuntimeError(
+                f"User input: {NUM_THREADS} - below 1, can not create less than 1 processes."
             )
-            log_q.put(f"debug {repr(err)}")
-            NUM_THREADS_MAX = 10
+    except (ValueError, RuntimeError) as err:
+        log_q.put(
+            f"critical NUM_THREADS out of range: setting to default value of {NUM_THREADS_DEFAULT}"
+        )
+        log_q.put(f"debug {repr(err)}")
+        NUM_THREADS = NUM_THREADS_DEFAULT
     args.inventory = abspath(args.inventory)
     config = read_config(abspath(args.inventory), log_q)
     args.jobfile = abspath(args.jobfile)
@@ -298,7 +251,7 @@ def main():
         ),
     )
     organization_thread.start()
-    with ProcessPoolExecutor(max_workers=NUM_THREADS_MAX) as ex:
+    with ProcessPoolExecutor(max_workers=NUM_THREADS) as ex:
         futures = [ex.submit(run, creds, p_config) for creds in config]
     result_q.put("CY-DONE")
     organization_thread.join()
