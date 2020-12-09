@@ -1,7 +1,9 @@
 import logging
 from multiprocessing.managers import BaseProxy
 from queue import Empty as QEmptyException
-from nosmct import THREAD_KILL_MSG
+from constants import (
+    THREAD_KILL_MSG,
+)
 
 
 class mctlogger:

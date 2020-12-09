@@ -10,7 +10,11 @@ from time import sleep
 from typing import Any
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler  # type: ignore
-from enum import Enum, auto
+from constants import (
+    NUM_THREADS_DEFAULT,
+    THREAD_KILL_MSG,
+    OperatingModes,
+)
 from FileOperations import (
     abspath,
     create_filename,
@@ -20,17 +24,6 @@ from FileOperations import (
     preload_jobfile,
     organize,
 )
-
-NUM_THREADS_DEFAULT = (
-    10  # Process pool default size, can be overridden with the --threads option
-)
-
-THREAD_KILL_MSG = "NOSMCT-STOP-THREAD"
-
-
-class OperatingModes(Enum):
-    YeetMode = auto()  # We are sending configurations to the devices
-    YoinkMode = auto()  # We are pulling configurations/status from the devices
 
 
 def run(info: dict, p_config: dict):
