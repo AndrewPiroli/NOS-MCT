@@ -26,6 +26,8 @@ NUM_THREADS_DEFAULT = (
     10  # Process pool default size, can be overridden with the --threads option
 )
 
+THREAD_KILL_MSG = "NOSMCT-STOP-THREAD"
+
 
 class OperatingModes(Enum):
     YeetMode = auto()  # We are sending configurations to the devices
@@ -112,7 +114,7 @@ def organize(
     while True:
         try:
             item = file_list.get(block=True, timeout=1)
-            if item == "CY-DONE":
+            if item == THREAD_KILL_MSG:
                 log_q.put("debug Organize thread recieved done flag, closing thread")
                 return
             other_exception_cnt = 0
@@ -253,14 +255,14 @@ def main():
     organization_thread.start()
     with ProcessPoolExecutor(max_workers=NUM_THREADS) as ex:
         futures = [ex.submit(run, creds, p_config) for creds in config]
-    result_q.put("CY-DONE")
+    result_q.put(THREAD_KILL_MSG)
     organization_thread.join()
     os.chdir("..")
     os.chdir("..")
     end = dtime.datetime.now()
     elapsed = (end - start).total_seconds()
     log_q.put(f"warning Time Elapsed: {elapsed}")
-    log_q.put("die")
+    log_q.put(THREAD_KILL_MSG)
     logging_process.join()
 
 
