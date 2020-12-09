@@ -2,6 +2,13 @@ import pathlib
 from typing import Iterator, List, Any
 import os
 import csv
+import shutil
+from queue import Empty as QEmptyException
+from constants import (
+    NUM_THREADS_DEFAULT,
+    THREAD_KILL_MSG,
+    OperatingModes,
+)
 
 
 def abspath(name: str) -> pathlib.Path:
@@ -75,3 +82,62 @@ def preload_jobfile(
     result = list(load_jobfile(jobfile))
     log_q.put(f"debug Added {jobfile} to cache")
     return result
+
+
+def organize(
+    file_list: Any,
+    log_q: Any,
+):
+    """
+    Responsible for taking the list of filenames of jobs, creating folders, and renaming the job into the correct folder.
+
+    Process:
+
+    1) Pulls a string off the queue in the format of '{Hostname} {Filename}'
+    2) For each element, split the string between the hostname and filename
+    3) Create a folder (set_dir) for the hostname
+    4) The filename has an extra copy of the hostname, which is stripped off.
+    5) Move+rename the file from the root dir into the the folder for the hostname
+    """
+    log_q.put("debug Organize thread starting")
+    other_exception_cnt = 0
+    while True:
+        try:
+            item = file_list.get(block=True, timeout=1)
+            if item == THREAD_KILL_MSG:
+                log_q.put("debug Organize thread recieved done flag, closing thread")
+                return
+            other_exception_cnt = 0
+        except QEmptyException:
+            continue
+        except Exception as e:
+            log_q.put(f"warning Error pulling from queue: {e}")
+            other_exception_cnt += 1
+            if other_exception_cnt > 10:
+                # If there are 10 errors (not incl Empty queue) in a row, something is hecked up, just give up
+                log_q.put(
+                    "critical ERROR: Big problemos inside organize(), just going to kill myself I guess..."
+                )
+                return
+            continue
+        original_dir = abspath(".")
+        job_entry = item.split(" ")
+        job_entry_hostname = job_entry[0]
+        job_entry_filename = job_entry[1]
+        log_q.put(
+            f"debug Organize thread: job_entry_hostname: {job_entry_hostname} job_entry_filename: {job_entry_filename}"
+        )
+        try:
+            destination = job_entry_filename.replace(f"{job_entry_hostname}_", "")
+            log_q.put(f"debug Organize thread: destination: {destination}")
+            set_dir(job_entry_hostname, log_q)
+            shutil.move(f"../{job_entry_filename}", f"./{destination}")
+            log_q.put(
+                f"debug Organize thread: shutil.move(../{job_entry_filename}, ./{destination}"
+            )
+        except Exception as e:
+            log_q.put(f"warning Error organizing {job_entry_filename}: {e}")
+            continue
+        finally:
+            os.chdir(original_dir)
+            log_q.put(f"debug Organize thread: finally: os.chdir({original_dir})")

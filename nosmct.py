@@ -1,18 +1,19 @@
 # Andrew Piroli (c)2019-2020
 #  MIT LICENSE  #
 import datetime as dtime
-import shutil
 import multiprocessing as mp
 import argparse
 import os
 import logging
 import mctlogger
-from queue import Empty as QEmptyException
-from time import sleep
 from typing import Any
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler  # type: ignore
-from enum import Enum, auto
+from constants import (
+    NUM_THREADS_DEFAULT,
+    THREAD_KILL_MSG,
+    OperatingModes,
+)
 from FileOperations import (
     abspath,
     create_filename,
@@ -20,16 +21,8 @@ from FileOperations import (
     load_jobfile,
     read_config,
     preload_jobfile,
+    organize,
 )
-
-NUM_THREADS_DEFAULT = (
-    10  # Process pool default size, can be overridden with the --threads option
-)
-
-
-class OperatingModes(Enum):
-    YeetMode = auto()  # We are sending configurations to the devices
-    YoinkMode = auto()  # We are pulling configurations/status from the devices
 
 
 def run(info: dict, p_config: dict):
@@ -90,65 +83,6 @@ def run(info: dict, p_config: dict):
             finally:
                 connection.save_config()
     log_q.put(f"warning finished -  {host}")
-
-
-def organize(
-    file_list: Any,
-    log_q: Any,
-):
-    """
-    Responsible for taking the list of filenames of jobs, creating folders, and renaming the job into the correct folder.
-
-    Process:
-
-    1) Pulls a string off the queue in the format of '{Hostname} {Filename}'
-    2) For each element, split the string between the hostname and filename
-    3) Create a folder (set_dir) for the hostname
-    4) The filename has an extra copy of the hostname, which is stripped off.
-    5) Move+rename the file from the root dir into the the folder for the hostname
-    """
-    log_q.put("debug Organize thread starting")
-    other_exception_cnt = 0
-    while True:
-        try:
-            item = file_list.get(block=True, timeout=1)
-            if item == "CY-DONE":
-                log_q.put("debug Organize thread recieved done flag, closing thread")
-                return
-            other_exception_cnt = 0
-        except QEmptyException:
-            continue
-        except Exception as e:
-            log_q.put(f"warning Error pulling from queue: {e}")
-            other_exception_cnt += 1
-            if other_exception_cnt > 10:
-                # If there are 10 errors (not incl Empty queue) in a row, something is hecked up, just give up
-                log_q.put(
-                    "critical ERROR: Big problemos inside organize(), just going to kill myself I guess..."
-                )
-                return
-            continue
-        original_dir = abspath(".")
-        job_entry = item.split(" ")
-        job_entry_hostname = job_entry[0]
-        job_entry_filename = job_entry[1]
-        log_q.put(
-            f"debug Organize thread: job_entry_hostname: {job_entry_hostname} job_entry_filename: {job_entry_filename}"
-        )
-        try:
-            destination = job_entry_filename.replace(f"{job_entry_hostname}_", "")
-            log_q.put(f"debug Organize thread: destination: {destination}")
-            set_dir(job_entry_hostname, log_q)
-            shutil.move(f"../{job_entry_filename}", f"./{destination}")
-            log_q.put(
-                f"debug Organize thread: shutil.move(../{job_entry_filename}, ./{destination}"
-            )
-        except Exception as e:
-            log_q.put(f"warning Error organizing {job_entry_filename}: {e}")
-            continue
-        finally:
-            os.chdir(original_dir)
-            log_q.put(f"debug Organize thread: finally: os.chdir({original_dir})")
 
 
 def handle_arguments() -> argparse.Namespace:
@@ -253,14 +187,14 @@ def main():
     organization_thread.start()
     with ProcessPoolExecutor(max_workers=NUM_THREADS) as ex:
         futures = [ex.submit(run, creds, p_config) for creds in config]
-    result_q.put("CY-DONE")
+    result_q.put(THREAD_KILL_MSG)
     organization_thread.join()
     os.chdir("..")
     os.chdir("..")
     end = dtime.datetime.now()
     elapsed = (end - start).total_seconds()
     log_q.put(f"warning Time Elapsed: {elapsed}")
-    log_q.put("die")
+    log_q.put(THREAD_KILL_MSG)
     logging_process.join()
 
 

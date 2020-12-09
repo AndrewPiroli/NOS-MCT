@@ -1,6 +1,9 @@
 import logging
 from multiprocessing.managers import BaseProxy
 from queue import Empty as QEmptyException
+from constants import (
+    THREAD_KILL_MSG,
+)
 
 
 class mctlogger:
@@ -22,7 +25,7 @@ class mctlogger:
             message_list = message.split(" ", 1)
             if hasattr(self.logger, message_list[0]):
                 getattr(self.logger, message_list[0])(message_list[1])  # I'm sorry
-            elif message == "die":
+            elif message == THREAD_KILL_MSG:
                 break
             else:
                 self.logger.critical(
