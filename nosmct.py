@@ -6,7 +6,6 @@ import argparse
 import os
 import logging
 import mctlogger
-from time import sleep
 from typing import Any
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler  # type: ignore
