@@ -4,7 +4,7 @@ NUM_THREADS_DEFAULT = (
     10  # Process pool default size, can be overridden with the --threads option
 )
 
-THREAD_KILL_MSG = "NOSMCT-STOP-THREAD"
+THREAD_KILL_MSG = "NOSMCT-STOP-THREAD"  # Sent to threads/processes so they know to shut themselves down
 
 
 class OperatingModes(Enum):
