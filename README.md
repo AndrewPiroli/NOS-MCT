@@ -8,7 +8,7 @@ Designed for minimal configuration, few dependencies, and fast deployment either
 ## Requires:
 
 * Python 3.6+
-* Netmiko
+* Netmiko - Install via pip: `python3 -m pip install netmiko`
 
 
 ## Configuration:
@@ -27,3 +27,17 @@ In Yoink mode, the commands are run one by one in exec mode (for Cisco, other NO
 In Yeet mode, the commands are sent all at once as a config set to be ran sequentially in config mode (or other NOS equivalent), a log of the commands run and any output is saved.
 
 A list of supported device types can be found [here](./PLATFORMS.md)
+
+## Example Usage:
+
+Retrive configuration and status: ```python3 ./nosmct.py -i examples/sample-inventory.csv -j examples/cisco-yoink-example.txt --yoink```
+
+Deploy configuration: ```python3 ./nosmct.py -i examples/sample-inventory.csv -j examples/cisco-yeet-example.txt --yeet```
+
+## Additional options
+
+Increase number of concurrent connections by adding the `-t` or `--threads` flag followed by a number. (default is 10)
+
+Pass `-q` or `--quiet` to supress most output.
+
+Debug options: pass `--verbose` or `-v` for increased logging. `--debug-netmiko` for even more logging (this is done per thread and sent to a log file in the output folder), and `--no-preload` to disable caching of the configuration files.
