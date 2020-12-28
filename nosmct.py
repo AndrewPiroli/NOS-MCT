@@ -198,7 +198,9 @@ def main():
         except KeyboardInterrupt:
             for future in not_done:
                 _ = future.cancel()
-            log_q.put("critical Jobs cancelled, please wait for remaining jobs to finish.")
+            log_q.put(
+                "critical Jobs cancelled, please wait for remaining jobs to finish."
+            )
             _ = wait(not_done, timeout=None)
     # End Stackoverflow code
     result_q.put(THREAD_KILL_MSG)
