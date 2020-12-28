@@ -11,7 +11,7 @@ class mctlogger:
         self.incoming_q = incoming_q
         self.output_level = output_level
         logging.basicConfig(format="", level=logging.CRITICAL)
-        self.logger = logging.getLogger("cylogger")
+        self.logger = logging.getLogger("nosmct")
         self.logger.setLevel(self.output_level)
         self.logger.debug("Logger: Initialized")
 
