@@ -9,6 +9,7 @@ import mctlogger
 from typing import Any
 from concurrent.futures import ProcessPoolExecutor
 from netmiko import ConnectHandler  # type: ignore
+from netmiko import NetmikoAuthenticationException, NetmikoTimeoutException
 from constants import (
     NUM_THREADS_DEFAULT,
     THREAD_KILL_MSG,
@@ -55,33 +56,31 @@ def run(info: dict, p_config: dict):
     else:
         nm_logger.addHandler(logging.NullHandler())
     nm_logger.propagate = False
-    with ConnectHandler(**info) as connection:
-        connection.enable()
-        hostname = connection.find_prompt().split("#")[0]
-        log_q.put(f"debug run: Found hostname: {hostname} for {host}")
-        if mode == OperatingModes.YoinkMode:
-            for cmd in jobfile:
-                filename = create_filename(hostname, cmd)
-                log_q.put(f"debug run: Got filename: {filename} for {host}")
-                try:
+    try:
+        with ConnectHandler(**info) as connection:
+            connection.enable()
+            hostname = connection.find_prompt().split("#")[0]
+            log_q.put(f"debug run: Found hostname: {hostname} for {host}")
+            if mode == OperatingModes.YoinkMode:
+                for cmd in jobfile:
+                    filename = create_filename(hostname, cmd)
+                    log_q.put(f"debug run: Got filename: {filename} for {host}")
                     with open(filename, "w") as output_file:
                         output_file.write(connection.send_command(cmd))
                     result_q.put(f"{hostname} {filename}")
-                except Exception as e:
-                    log_q.put(f"warning Error writing output file for {hostname}!")
-                    log_q.put(f"debug {str(e)}")
-        else:  # mode == OperatingModes.YeetMode
-            filename = create_filename(hostname, "configset")
-            log_q.put(f"debug run: Got filename: {filename} for {host}")
-            try:
-                with open(filename, "w") as output_file:
-                    output_file.write(connection.send_config_set(jobfile))
-                result_q.put(f"{hostname} {filename}")
-            except Exception as e:
-                log_q.put(f"warning Error writing output file for {hostname}!")
-                log_q.put(f"debug {str(e)}")
-            finally:
-                connection.save_config()
+            else:  # mode == OperatingModes.YeetMode
+                filename = create_filename(hostname, "configset")
+                log_q.put(f"debug run: Got filename: {filename} for {host}")
+                try:
+                    with open(filename, "w") as output_file:
+                        output_file.write(connection.send_config_set(jobfile))
+                    result_q.put(f"{hostname} {filename}")
+                finally:
+                    connection.save_config()
+    except (NetmikoTimeoutException, NetmikoAuthenticationException) as err:
+        log_q.put(f"critical Excpetion in netmiko connection: {err}")
+    except OSError as err:
+        log_q.put(f"critical Error writing file: {err}")
     log_q.put(f"warning finished -  {host}")
 
 
