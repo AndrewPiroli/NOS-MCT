@@ -193,11 +193,12 @@ def main():
         done, not_done = wait(futures, timeout=0)
         try:
             while not_done:
-                freshly_done, not_done = wait(not_done, timeout=1)
+                freshly_done, not_done = wait(not_done, timeout=0.5)
                 done |= freshly_done
         except KeyboardInterrupt:
             for future in not_done:
                 _ = future.cancel()
+            log_q.put("critical Jobs cancelled, please wait for remaining jobs to finish.")
             _ = wait(not_done, timeout=None)
     # End Stackoverflow code
     result_q.put(THREAD_KILL_MSG)
