@@ -7,7 +7,7 @@ import os
 import logging
 import mctlogger
 from typing import Any
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, wait
 from netmiko import ConnectHandler  # type: ignore
 from netmiko import NetmikoAuthenticationException, NetmikoTimeoutException
 from constants import (
@@ -184,8 +184,22 @@ def main():
         ),
     )
     organization_thread.start()
+    # Stackoverflow https://stackoverflow.com/a/63495323
+    # CC-BY-SA 4.0
+    # By: geitda https://stackoverflow.com/users/14133684/geitda
+    # Hopefully this improves Ctrl-C performance....
     with ProcessPoolExecutor(max_workers=NUM_THREADS) as ex:
         futures = [ex.submit(run, creds, p_config) for creds in config]
+        done, not_done = wait(futures, timeout=0)
+        try:
+            while not_done:
+                freshly_done, not_done = wait(not_done, timeout=1)
+                done |= freshly_done
+        except KeyboardInterrupt:
+            for future in not_done:
+                _ = future.cancel()
+            _ = wait(not_done, timeout=None)
+    # End Stackoverflow code
     result_q.put(THREAD_KILL_MSG)
     organization_thread.join()
     os.chdir("..")
