@@ -78,7 +78,7 @@ def run(info: dict, p_config: dict):
                 finally:
                     connection.save_config()
     except (NetmikoTimeoutException, NetmikoAuthenticationException) as err:
-        log_q.put(f"critical Excpetion in netmiko connection: {err}")
+        log_q.put(f"critical Exception in netmiko connection: {err}")
     except OSError as err:
         log_q.put(f"critical Error writing file: {err}")
     log_q.put(f"warning finished -  {host}")
