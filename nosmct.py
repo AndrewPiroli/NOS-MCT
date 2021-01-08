@@ -1,4 +1,4 @@
-# Andrew Piroli (c)2019-2020
+# Andrew Piroli (c)2019-2021
 #  MIT LICENSE  #
 import datetime as dtime
 import multiprocessing as mp
