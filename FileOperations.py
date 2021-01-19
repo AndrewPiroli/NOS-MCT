@@ -17,7 +17,7 @@ def abspath(name: str) -> pathlib.Path:
 
 def sanitize_filename(filename: str) -> str:
     """
-    Outputs filenames with any illegal characters removed.
+    Removes illegal characters for filenames
     """
     illegals = list(" <>:\\/|?*\0$")
     illegals.extend(["CON", "PRN", "AUX", "NUL", "COM", "LPT"])

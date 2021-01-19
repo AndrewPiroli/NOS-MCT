@@ -28,13 +28,14 @@ from FileOperations import (
 def run(info: dict, p_config: dict):
     """
     Worker thread running in process
-    Responsible for creating the connection to the device, finding the hostname, running the jobs, and saving them to the current directory.
+    Creates a connection to the specified device, creates a folder for it, and runs throuigh the jobfile saving the results to the folder
     info dict contains device information like ip/hostname, device type, and login details
     p_config dictionary contains configuration info on how the function itself should operate. It contains:
-      result_q is a proxy to a Queue where filename information is pushed so another thread can organize the files into the correct folder
-      log_q is a queue to place log messages
+      mode is class OperatingMode, which tells the process how to interpret the jobs
+      log_queue is a queue to place log messages
       jobfile is the path to the jobfile incase it's not already loaded
       jobfile_cache is a dict with a cached list of commands for each device_type
+      netmiko_debug is a path to a debug file, if present, it will log raw io for each device.
     """
     original_directory = abspath(".")
     mode = p_config["mode"]
