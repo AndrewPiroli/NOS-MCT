@@ -4,11 +4,6 @@ import os
 import csv
 import shutil
 from queue import Empty as QEmptyException
-from constants import (
-    NUM_THREADS_DEFAULT,
-    THREAD_KILL_MSG,
-    OperatingModes,
-)
 
 
 def abspath(name: str) -> pathlib.Path:
