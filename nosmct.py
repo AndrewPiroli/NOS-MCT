@@ -17,12 +17,11 @@ from constants import (
 )
 from FileOperations import (
     abspath,
-    create_filename,
     set_dir,
     load_jobfile,
     read_config,
     preload_jobfile,
-    organize,
+    sanitize_filename,
 )
 
 
@@ -37,9 +36,9 @@ def run(info: dict, p_config: dict):
       jobfile is the path to the jobfile incase it's not already loaded
       jobfile_cache is a dict with a cached list of commands for each device_type
     """
+    original_directory = abspath(".")
     mode = p_config["mode"]
     log_q = p_config["log_queue"]
-    result_q = p_config["result_queue"]
     host = info["host"]
     jobfile = p_config["jobfile"]
     jobfile_cache = p_config["jobfile_cache"]
@@ -59,28 +58,29 @@ def run(info: dict, p_config: dict):
     try:
         with ConnectHandler(**info) as connection:
             connection.enable()
-            hostname = connection.find_prompt().split("#")[0]
+            hostname = sanitize_filename(connection.find_prompt().split("#")[0])
+            set_dir(original_directory / hostname, log_q)
             log_q.put(f"debug run: Found hostname: {hostname} for {host}")
             if mode == OperatingModes.YoinkMode:
                 for cmd in jobfile:
-                    filename = create_filename(hostname, cmd)
+                    filename = f"{sanitize_filename(cmd)}.txt"
                     log_q.put(f"debug run: Got filename: {filename} for {host}")
                     with open(filename, "w") as output_file:
                         output_file.write(connection.send_command(cmd))
-                    result_q.put(f"{hostname} {filename}")
             else:  # mode == OperatingModes.YeetMode
-                filename = create_filename(hostname, "configset")
+                filename = "configset.txt"
                 log_q.put(f"debug run: Got filename: {filename} for {host}")
                 try:
                     with open(filename, "w") as output_file:
                         output_file.write(connection.send_config_set(jobfile))
-                    result_q.put(f"{hostname} {filename}")
                 finally:
                     connection.save_config()
     except (NetmikoTimeoutException, NetmikoAuthenticationException) as err:
         log_q.put(f"critical Exception in netmiko connection: {err}")
     except OSError as err:
         log_q.put(f"critical Error writing file: {err}")
+    finally:
+        os.chdir(original_directory)
     log_q.put(f"warning finished -  {host}")
 
 
@@ -167,23 +167,13 @@ def main():
     preloaded_jobfile = (
         preload_jobfile(args.jobfile, log_q) if not args.no_preload else None
     )
-    result_q = manager.Queue()
     p_config = {
         "mode": selected_mode,
-        "result_queue": result_q,
         "log_queue": log_q,
         "netmiko_debug": netmiko_debug_file,
         "jobfile": args.jobfile,
         "jobfile_cache": preloaded_jobfile,
     }
-    organization_thread = mp.Process(
-        target=organize,
-        args=(
-            result_q,
-            log_q,
-        ),
-    )
-    organization_thread.start()
     # Stackoverflow https://stackoverflow.com/a/63495323
     # CC-BY-SA 4.0
     # By: geitda https://stackoverflow.com/users/14133684/geitda
@@ -203,8 +193,6 @@ def main():
             )
             _ = wait(not_done, timeout=None)
     # End Stackoverflow code
-    result_q.put(THREAD_KILL_MSG)
-    organization_thread.join()
     os.chdir("..")
     os.chdir("..")
     end = dtime.datetime.now()
