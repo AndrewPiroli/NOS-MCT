@@ -4,6 +4,12 @@ import os
 import csv
 import shutil
 from queue import Empty as QEmptyException
+import constants
+
+# These characters/strings are illegal or their usage is discouraged on Windows, but could appear in a command name or device hostname.
+illegals = list(' <>:\\/|?*$"')
+illegals.extend(["CON", "PRN", "AUX", "NUL", "COM", "LPT", ".."])
+illegals.extend([chr(i) for i in range(0, 32)])
 
 
 def abspath(name: str) -> pathlib.Path:
@@ -14,8 +20,6 @@ def sanitize_filename(filename: str) -> str:
     """
     Removes illegal characters for filenames
     """
-    illegals = list(" <>:\\/|?*\0$")
-    illegals.extend(["CON", "PRN", "AUX", "NUL", "COM", "LPT"])
     for illegal_string in illegals:
         filename = filename.replace(illegal_string, "_")
     return filename
@@ -53,12 +57,21 @@ def load_jobfile(filename: pathlib.Path) -> Iterator[str]:
 
 def read_config(filename: pathlib.Path, log_q: Any) -> Iterator[dict]:
     """
-    Generator function to processes the CSV config file. Handles the various CSV formats and removes headers.
+    Generator function to processes the CSV config file. Handles the various CSV formats and stitches the header onto each entry.
     """
     with open(filename, "r") as config_file:
         log_q.put(f"debug read_config: filename: {filename}")
-        dialect = csv.Sniffer().sniff(config_file.read(1024))  # Detect CSV style
-        config_file.seek(0)  # Reset read head to beginning of file
+        try:
+            contents = [
+                next(config_file) for _ in range(2)
+            ]  # Reading 2 lines of the CSV, is sufficient to detect style
+        except StopIteration:  # Only occurs when the file has less than two lines....not a very useful file, but I'm ready for it
+            pass
+        finally:
+            contents = "".join(contents)
+            config_file.seek(0)
+        dialect = csv.Sniffer().sniff(contents)  # Detect CSV style
+        del contents
         reader = csv.reader(config_file, dialect)
         header = next(reader)
         log_q.put(f"debug read_config: header: {header}")
