@@ -1,0 +1,11 @@
+name: check codestyle
+on:
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: jpetrucciani/mypy-check@0.761
+      - uses: jpetrucciani/black-check@master
