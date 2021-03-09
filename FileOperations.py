@@ -1,10 +1,11 @@
 import pathlib
-from typing import Iterator, List, Any
+from typing import Iterator, List, Union
 import os
 import csv
 import shutil
 from queue import Empty as QEmptyException
 import constants
+from multiprocessing import Queue
 
 # These characters/strings are illegal or their usage is discouraged on Windows, but could appear in a command name or device hostname.
 illegals = list(' <>:\\/|?*$"')
@@ -12,7 +13,7 @@ illegals.extend(["CON", "PRN", "AUX", "NUL", "COM", "LPT", ".."])
 illegals.extend([chr(i) for i in range(0, 32)])
 
 
-def abspath(name: str) -> pathlib.Path:
+def abspath(name: Union[str, pathlib.Path]) -> pathlib.Path:
     return pathlib.Path(name).absolute()
 
 
@@ -25,7 +26,7 @@ def sanitize_filename(filename: str) -> str:
     return filename
 
 
-def set_dir(name: str, log_q: Any):
+def set_dir(name: Union[str, pathlib.Path], log_q: Queue):
     """
     Helper function to create (and handle existing) folders and change directory to them automatically.
     """
@@ -55,7 +56,7 @@ def load_jobfile(filename: pathlib.Path) -> Iterator[str]:
             yield job_entry.strip()
 
 
-def read_config(filename: pathlib.Path, log_q: Any) -> Iterator[dict]:
+def read_config(filename: pathlib.Path, log_q: Queue) -> Iterator[dict]:
     """
     Generator function to processes the CSV config file. Handles the various CSV formats and stitches the header onto each entry.
     """
@@ -68,10 +69,10 @@ def read_config(filename: pathlib.Path, log_q: Any) -> Iterator[dict]:
         except StopIteration:  # Only occurs when the file has less than two lines....not a very useful file, but I'm ready for it
             pass
         finally:
-            contents = "".join(contents)
+            full_contents = "".join(contents)
             config_file.seek(0)
-        dialect = csv.Sniffer().sniff(contents)  # Detect CSV style
-        del contents
+        dialect = csv.Sniffer().sniff(full_contents)  # Detect CSV style
+        del contents, full_contents
         reader = csv.reader(config_file, dialect)
         header = next(reader)
         log_q.put(f"debug read_config: header: {header}")
@@ -81,7 +82,7 @@ def read_config(filename: pathlib.Path, log_q: Any) -> Iterator[dict]:
 
 def preload_jobfile(
     jobfile: pathlib.Path,
-    log_q: Any,
+    log_q: Queue,
 ) -> List[str]:
     """
     Load the job file beforehand and put them in a Proxied list. This lets each process grab the list from memory than spending disk IOPS on it

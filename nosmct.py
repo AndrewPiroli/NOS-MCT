@@ -6,7 +6,6 @@ import argparse
 import os
 import logging
 import mctlogger
-from typing import Any
 from concurrent.futures import ProcessPoolExecutor, wait
 from netmiko import ConnectHandler  # type: ignore
 from netmiko import NetmikoAuthenticationException, NetmikoTimeoutException
