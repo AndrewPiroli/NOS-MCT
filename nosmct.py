@@ -6,7 +6,6 @@ import argparse
 import os
 import logging
 import mctlogger
-from typing import Any
 from concurrent.futures import ProcessPoolExecutor, wait
 from netmiko import ConnectHandler  # type: ignore
 from netmiko import NetmikoAuthenticationException, NetmikoTimeoutException
@@ -86,6 +85,9 @@ def run(info: dict, p_config: dict):
 
 
 def handle_arguments() -> argparse.Namespace:
+    """
+    Collects and parses command line arguments
+    """
     parser = argparse.ArgumentParser()
     mode_selection = parser.add_mutually_exclusive_group(required=True)
     mode_selection.add_argument(
@@ -131,6 +133,15 @@ def handle_arguments() -> argparse.Namespace:
 
 
 def main():
+    """The entry point for interactive use (the only supported use as of now)
+    1) Collect command line arguments
+    2) Configure itself from parsed command line args
+    3) Read configuration files given
+    4) Creates output directories
+    5) Create and start process pool
+    6) Spinlock until process pool completes or Ctrl-C is received
+    7) Cleanup and exit.
+    """
     args = handle_arguments()
     start = dtime.datetime.now()
     log_level = logging.WARNING

@@ -1,27 +1,34 @@
 import pathlib
-from typing import Iterator, List, Any
+from typing import Iterator, List, Union
 import os
 import csv
 import shutil
 from queue import Empty as QEmptyException
+import constants
+from multiprocessing import Queue
+
+# These characters/strings are illegal or their usage is discouraged on Windows, but could appear in a command name or device hostname.
+illegals = list(' <>:\\/|?*$"')
+illegals.extend(["CON", "PRN", "AUX", "NUL", "COM", "LPT", ".."])
+illegals.extend([chr(i) for i in range(0, 32)])
 
 
-def abspath(name: str) -> pathlib.Path:
+def abspath(name: Union[str, pathlib.Path]) -> pathlib.Path:
+    """Return a absolute Path object given an existing Path object or a string representing a path"""
     return pathlib.Path(name).absolute()
 
 
 def sanitize_filename(filename: str) -> str:
     """
-    Removes illegal characters for filenames
+    Removes illegal characters for filenames, mainly for Windows support. No host platform detection though, all platforms must suffer.
+    All files with derived names should be run through this filter before creation.
     """
-    illegals = list(" <>:\\/|?*\0$")
-    illegals.extend(["CON", "PRN", "AUX", "NUL", "COM", "LPT"])
     for illegal_string in illegals:
         filename = filename.replace(illegal_string, "_")
     return filename
 
 
-def set_dir(name: str, log_q: Any):
+def set_dir(name: Union[str, pathlib.Path], log_q: Queue):
     """
     Helper function to create (and handle existing) folders and change directory to them automatically.
     """
@@ -42,6 +49,7 @@ def set_dir(name: str, log_q: Any):
 
 
 def load_jobfile(filename: pathlib.Path) -> Iterator[str]:
+    """Generator for reading simple text files"""
     with open(
         filename,
         "r",
@@ -51,14 +59,23 @@ def load_jobfile(filename: pathlib.Path) -> Iterator[str]:
             yield job_entry.strip()
 
 
-def read_config(filename: pathlib.Path, log_q: Any) -> Iterator[dict]:
+def read_config(filename: pathlib.Path, log_q: Queue) -> Iterator[dict]:
     """
-    Generator function to processes the CSV config file. Handles the various CSV formats and removes headers.
+    Generator function to processes the CSV config file. Handles the various CSV formats and stitches the header onto each entry.
     """
     with open(filename, "r") as config_file:
         log_q.put(f"debug read_config: filename: {filename}")
-        dialect = csv.Sniffer().sniff(config_file.read(1024))  # Detect CSV style
-        config_file.seek(0)  # Reset read head to beginning of file
+        try:
+            contents = [
+                next(config_file) for _ in range(2)
+            ]  # Reading 2 lines of the CSV, is sufficient to detect style
+        except StopIteration:  # Only occurs when the file has less than two lines....not a very useful file, but I'm ready for it
+            pass
+        finally:
+            full_contents = "".join(contents)
+            config_file.seek(0)
+        dialect = csv.Sniffer().sniff(full_contents)  # Detect CSV style
+        del contents, full_contents
         reader = csv.reader(config_file, dialect)
         header = next(reader)
         log_q.put(f"debug read_config: header: {header}")
@@ -68,10 +85,10 @@ def read_config(filename: pathlib.Path, log_q: Any) -> Iterator[dict]:
 
 def preload_jobfile(
     jobfile: pathlib.Path,
-    log_q: Any,
+    log_q: Queue,
 ) -> List[str]:
     """
-    Load the job file beforehand and put them in a Proxied list. This lets each process grab the list from memory than spending disk IOPS on it
+    Like load_jobfile, but consumes the generator fully so the entire file may be cached.
     """
     result = list(load_jobfile(jobfile))
     log_q.put(f"debug Added {jobfile} to cache")
