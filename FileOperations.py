@@ -14,12 +14,14 @@ illegals.extend([chr(i) for i in range(0, 32)])
 
 
 def abspath(name: Union[str, pathlib.Path]) -> pathlib.Path:
+    """Return a absolute Path object given an existing Path object or a string representing a path"""
     return pathlib.Path(name).absolute()
 
 
 def sanitize_filename(filename: str) -> str:
     """
-    Removes illegal characters for filenames
+    Removes illegal characters for filenames, mainly for Windows support. No host platform detection though, all platforms must suffer.
+    All files with derived names should be run through this filter before creation.
     """
     for illegal_string in illegals:
         filename = filename.replace(illegal_string, "_")
@@ -47,6 +49,7 @@ def set_dir(name: Union[str, pathlib.Path], log_q: Queue):
 
 
 def load_jobfile(filename: pathlib.Path) -> Iterator[str]:
+    """Generator for reading simple text files"""
     with open(
         filename,
         "r",
@@ -85,7 +88,7 @@ def preload_jobfile(
     log_q: Queue,
 ) -> List[str]:
     """
-    Load the job file beforehand and put them in a Proxied list. This lets each process grab the list from memory than spending disk IOPS on it
+    Like load_jobfile, but consumes the generator fully so the entire file may be cached.
     """
     result = list(load_jobfile(jobfile))
     log_q.put(f"debug Added {jobfile} to cache")
