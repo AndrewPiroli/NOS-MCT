@@ -28,24 +28,31 @@ def run(info: dict, p_config: dict):
     """
     Worker thread running in process
     Creates a connection to the specified device, creates a folder for it, and runs throuigh the jobfile saving the results to the folder
-    info dict contains device information like ip/hostname, device type, and login details
-    p_config dictionary contains configuration info on how the function itself should operate. It contains:
+    `info` dict contains device information like ip/hostname, device type, and login details
+    `info` is passed directly to netmiko's `ConnectHandler` via kwargs dictionary unpacking
+    `p_config` dictionary contains configuration info on how the function itself should operate. It contains:
       mode is class OperatingMode, which tells the process how to interpret the jobs
       log_queue is a queue to place log messages
       jobfile is the path to the jobfile incase it's not already loaded
       jobfile_cache is a dict with a cached list of commands for each device_type
       netmiko_debug is a path to a debug file, if present, it will log raw io for each device.
     """
+    # Save the original directory, we chdir around and we need to come back because the process will
+    # inherit it next time around (I dislike this behavior of ProcessPoolExecutor).
+    # If it ever breaks, it can be moved to p_config, but I see no need to do that preemptively
+    # because I don't really like having to pass in p_config (can this be a module level global? - I think so)
     original_directory = abspath(".")
     mode = p_config["mode"]
     log_q = p_config["log_queue"]
-    host = info["host"]
     jobfile = p_config["jobfile"]
     jobfile_cache = p_config["jobfile_cache"]
+    #
+    host = info["host"]
     log_q.put(f"warning running - {host}")
+    # Configure logging for netmiko
     nm_logger = logging.getLogger("netmiko")
+    # Remove their default handler because it doesn't really work with my crappy logging sytstem I cooked up
     nm_logger.removeHandler(nm_logger.handlers[0])
-    jobfile = jobfile_cache if jobfile_cache is not None else load_jobfile(jobfile)
     if p_config["netmiko_debug"] is not None:
         nm_logger.setLevel(logging.DEBUG)
         nm_log_fh = logging.FileHandler(
@@ -55,8 +62,14 @@ def run(info: dict, p_config: dict):
     else:
         nm_logger.addHandler(logging.NullHandler())
     nm_logger.propagate = False
+    #
+    jobfile = jobfile_cache if jobfile_cache is not None else load_jobfile(jobfile)
+    # Setup done, start actually working on the task at hand
     try:
         with ConnectHandler(**info) as connection:
+            # This should probably have it's own try/except in case the enable doesn't work
+            # But most exec commands and privileged anyway, and config modes certainly are
+            # So dying hard here is acceptable to me.
             connection.enable()
             hostname = sanitize_filename(connection.find_prompt().split("#")[0])
             set_dir(original_directory / hostname, log_q)
@@ -68,17 +81,24 @@ def run(info: dict, p_config: dict):
                     with open(filename, "w") as output_file:
                         output_file.write(connection.send_command(cmd))
             else:  # mode == OperatingModes.YeetMode
+                # Filename here is not derived from any user controlled source, no need to run it through the sanitizer
                 filename = "configset.txt"
                 log_q.put(f"debug run: Got filename: {filename} for {host}")
                 try:
                     with open(filename, "w") as output_file:
                         output_file.write(connection.send_config_set(jobfile))
+                except NetmikoTimeoutException:
+                    # Pass this up to the outer try/except
+                    raise
                 finally:
+                    # No matter what happens, I don't want to leave a device without at least trying to save the config
                     connection.save_config()
     except (NetmikoTimeoutException, NetmikoAuthenticationException) as err:
         log_q.put(f"critical Exception in netmiko connection: {err}")
     except OSError as err:
         log_q.put(f"critical Error writing file: {err}")
+    except Exception as err:
+        log_q.put(f"critical Unknown exception: {err}")
     finally:
         os.chdir(original_directory)
     log_q.put(f"warning finished -  {host}")
@@ -142,15 +162,23 @@ def main():
     6) Spinlock until process pool completes or Ctrl-C is received
     7) Cleanup and exit.
     """
-    args = handle_arguments()
     start = dtime.datetime.now()
+    args = handle_arguments()
     log_level = logging.WARNING
     if args.quiet:
         log_level = logging.CRITICAL
     if args.verbose:
         log_level = logging.DEBUG
-    manager = mp.Manager()
-    log_q = manager.Queue()
+    # Regular multiprocessing.Queue's seem to not work (can't remember why, need to re-test)
+    # Building Queue "Proxies" with multiprocessing.Manager seems to work great however.
+    # Having the manager object around was useful in the past, but now it's not used again
+    # manager = mp.Manager()
+    #
+    # Logging is done over a queue on a separate process to serialize everything
+    # This is needed (from testing) because having large process pools fight over the same stdout did not go well.
+    # It also uncouples tty/stdout performance from the execution of the worker processes.
+    # This is useful because some terminals (really just Microsoft) are really slow.
+    log_q = mp.Manager().Queue()
     logging_process = mp.Process(target=mctlogger.helper, args=(log_q, log_level))
     logging_process.start()
     log_q.put("warning Copyright Andrew Piroli 2019-2020")
@@ -158,6 +186,8 @@ def main():
     log_q.put("warning ")
     selected_mode = OperatingModes.YeetMode if args.yeet else OperatingModes.YoinkMode
     log_q.put(f"warning Running in operating mode: {selected_mode}")
+    # This is a bit annoying to do, argparse can do validation (future self, you want to subclass `argparse.Action` override __call__)
+    # Not sure it's worth it just yet, I'd even be fine crashing with invalid input especially since I *only* verify this one
     try:
         NUM_THREADS = int(args.threads) if args.threads else NUM_THREADS_DEFAULT
         if NUM_THREADS < 1:
@@ -191,6 +221,9 @@ def main():
     # By: geitda https://stackoverflow.com/users/14133684/geitda
     # Hopefully this improves Ctrl-C performance....
     with ProcessPoolExecutor(max_workers=NUM_THREADS) as ex:
+        # Can't `ex.map` here because of p_config
+        # I could use itertools.repeat or whatever
+        # I don't think it impacts performance much however
         futures = [ex.submit(run, creds, p_config) for creds in config]
         done, not_done = wait(futures, timeout=0)
         try:
@@ -205,11 +238,16 @@ def main():
             )
             _ = wait(not_done, timeout=None)
     # End Stackoverflow code
-    os.chdir("..")
-    os.chdir("..")
+    os.chdir("..")  # Back out of timestamped folder
+    os.chdir("..")  # Backout of "Output" folder
+    # We are back where we started
     end = dtime.datetime.now()
     elapsed = (end - start).total_seconds()
     log_q.put(f"warning Time Elapsed: {elapsed}")
+    # We could safely kill the logger because it's a process not a thread
+    # (we could kill it even as a thread too since the program is about to be over lul)
+    # But if stdout is very far behind it could lose some messages
+    # So just do it the right way and let it shut itself down.
     log_q.put(THREAD_KILL_MSG)
     logging_process.join()
 
