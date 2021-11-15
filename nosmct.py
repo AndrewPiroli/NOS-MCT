@@ -94,11 +94,11 @@ def run(info: dict, p_config: dict):
                     # No matter what happens, I don't want to leave a device without at least trying to save the config
                     connection.save_config()
     except (NetmikoTimeoutException, NetmikoAuthenticationException) as err:
-        log_q.put(f"critical Exception in netmiko connection: {err}")
+        log_q.put(f"critical Exception in netmiko connection: {type(err).__name__}: {err}")
     except OSError as err:
-        log_q.put(f"critical Error writing file: {err}")
+        log_q.put(f"critical Error writing file: {type(err).__name__}: {err}")
     except Exception as err:
-        log_q.put(f"critical Unknown exception: {err}")
+        log_q.put(f"critical Unknown exception: {type(err).__name__}: {err}")
     finally:
         os.chdir(original_directory)
     log_q.put(f"warning finished -  {host}")
