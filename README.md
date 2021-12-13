@@ -30,9 +30,9 @@ A list of supported device types can be found [here](./PLATFORMS.md)
 
 ## Example Usage:
 
-Retrive configuration and status: ```python3 ./nosmct.py -i examples/sample-inventory.csv -j examples/cisco-yoink-example.txt --yoink```
+Retrive configuration and status: ```python3 nosmct/nosmct.py -i examples/sample-inventory.csv -j examples/cisco-yoink-example.txt --yoink```
 
-Deploy configuration: ```python3 ./nosmct.py -i examples/sample-inventory.csv -j examples/cisco-yeet-example.txt --yeet```
+Deploy configuration: ```python3 nosmct/nosmct.py -i examples/sample-inventory.csv -j examples/cisco-yeet-example.txt --yeet```
 
 ## Additional options
 
