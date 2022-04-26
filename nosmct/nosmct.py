@@ -73,7 +73,8 @@ def run(info: dict, p_config: dict):
             # So dying hard here is acceptable to me.
             connection.enable()
             hostname = sanitize_filename(connection.find_prompt().split("#")[0])
-            set_dir(original_directory / hostname, log_q)
+            if mode != OperatingModes.SaveOnlyMode:
+                set_dir(original_directory / hostname, log_q)
             log_q.put(f"debug run: Found hostname: {hostname} for {host}")
             if mode == OperatingModes.YoinkMode:
                 for cmd in jobfile:
@@ -226,8 +227,9 @@ def main():
     config = read_config(abspath(args.inventory), log_q)
     if args.jobfile:
         args.jobfile = abspath(args.jobfile)
-    set_dir("Output", log_q)
-    set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"), log_q)
+    if selected_mode != OperatingModes.SaveOnlyMode:
+        set_dir("Output", log_q)
+        set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"), log_q)
     netmiko_debug_file = abspath(".") / "netmiko." if args.debug_netmiko else None
     preloaded_jobfile = (
         preload_jobfile(args.jobfile, log_q) if not args.no_preload else None
