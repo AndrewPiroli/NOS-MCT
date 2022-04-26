@@ -64,7 +64,12 @@ def run(info: dict, p_config: dict):
         nm_logger.addHandler(logging.NullHandler())
     nm_logger.propagate = False
     #
-    jobfile = jobfile_cache if jobfile_cache is not None else load_jobfile(jobfile)
+    if jobfile_cache:
+        jobfile = jobfile_cache
+    elif jobfile:
+        jobfile = load_jobfile(jobfile)
+    else:
+        jobfile = ()
     # Setup done, start actually working on the task at hand
     try:
         with ConnectHandler(**info) as connection:
