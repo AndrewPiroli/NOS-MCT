@@ -6,6 +6,7 @@ import argparse
 import os
 import logging
 import mctlogger
+from sys import argv
 from concurrent.futures import ProcessPoolExecutor, wait
 from netmiko import ConnectHandler  # type: ignore
 from netmiko import NetmikoAuthenticationException, NetmikoTimeoutException
@@ -80,7 +81,7 @@ def run(info: dict, p_config: dict):
                     log_q.put(f"debug run: Got filename: {filename} for {host}")
                     with open(filename, "w") as output_file:
                         output_file.write(connection.send_command(cmd))
-            else:  # mode == OperatingModes.YeetMode
+            elif mode == OperatingModes.YeetMode:
                 # Filename here is not derived from any user controlled source, no need to run it through the sanitizer
                 filename = "configset.txt"
                 log_q.put(f"debug run: Got filename: {filename} for {host}")
@@ -93,6 +94,12 @@ def run(info: dict, p_config: dict):
                 finally:
                     # No matter what happens, I don't want to leave a device without at least trying to save the config
                     connection.save_config()
+            elif mode == OperatingModes.SaveOnlyMode:
+                connection.save_config()
+                log_q.put(f"warning Saved config for {host}")
+            else:
+                log_q.put(f"critical Unhandled Operating Mode: {mode = }")
+                raise RuntimeError("Unhandled Operating Mode: {mode = }")
     except (NetmikoTimeoutException, NetmikoAuthenticationException) as err:
         log_q.put(
             f"critical Exception in netmiko connection: {type(err).__name__}: {err}"
@@ -122,6 +129,11 @@ def handle_arguments() -> argparse.Namespace:
         action="store_true",
         help="Yoink mode, pull configurations from NOS",
     )
+    mode_selection.add_argument(
+        "--save-only",
+        action="store_true",
+        help="Save only mode, just saves running-config",
+    )
     parser.add_argument(
         "-i", "--inventory", help="The inventory file to load.", required=True
     )
@@ -129,7 +141,7 @@ def handle_arguments() -> argparse.Namespace:
         "-j",
         "--jobfile",
         help="The file containing commands to send to the NOS",
-        required=True,
+        required=("--save-only" not in argv),
     )
     parser.add_argument(
         "-t", "--threads", help="The number of devices to connect to at once."
@@ -186,7 +198,15 @@ def main():
     log_q.put("warning Copyright Andrew Piroli 2019-2020")
     log_q.put("warning MIT License")
     log_q.put("warning ")
-    selected_mode = OperatingModes.YeetMode if args.yeet else OperatingModes.YoinkMode
+    if args.yeet:
+        selected_mode = OperatingModes.YeetMode
+    elif args.yoink:
+        selected_mode = OperatingModes.YoinkMode
+    elif args.save_only:
+        selected_mode = OperatingModes.SaveOnlyMode
+    else:
+        log_q.put("critical No operating mode selected from command line args")
+        raise RuntimeError("No operating mode selected from command line args")
     log_q.put(f"warning Running in operating mode: {selected_mode}")
     # This is a bit annoying to do, argparse can do validation (future self, you want to subclass `argparse.Action` override __call__)
     # Not sure it's worth it just yet, I'd even be fine crashing with invalid input especially since I *only* verify this one
@@ -204,7 +224,8 @@ def main():
         NUM_THREADS = NUM_THREADS_DEFAULT
     args.inventory = abspath(args.inventory)
     config = read_config(abspath(args.inventory), log_q)
-    args.jobfile = abspath(args.jobfile)
+    if args.jobfile:
+        args.jobfile = abspath(args.jobfile)
     set_dir("Output", log_q)
     set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"), log_q)
     netmiko_debug_file = abspath(".") / "netmiko." if args.debug_netmiko else None

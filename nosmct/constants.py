@@ -10,3 +10,4 @@ THREAD_KILL_MSG = "NOSMCT-STOP-THREAD"  # Sent to threads/processes so they know
 class OperatingModes(Enum):
     YeetMode = auto()  # We are sending configurations to the devices
     YoinkMode = auto()  # We are pulling configurations/status from the devices
+    SaveOnlyMode = auto()  # We are just saving the config

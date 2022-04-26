@@ -1,5 +1,5 @@
 import pathlib
-from typing import Iterator, List, Union
+from typing import Iterator, List, Union, Optional
 import os
 import csv
 import shutil
@@ -84,12 +84,14 @@ def read_config(filename: pathlib.Path, log_q: Queue) -> Iterator[dict]:
 
 
 def preload_jobfile(
-    jobfile: pathlib.Path,
+    jobfile: Optional[pathlib.Path],
     log_q: Queue,
-) -> List[str]:
+) -> Optional[List[str]]:
     """
     Like load_jobfile, but consumes the generator fully so the entire file may be cached.
     """
+    if not jobfile:
+        return None
     result = list(load_jobfile(jobfile))
     log_q.put(f"debug Added {jobfile} to cache")
     return result
