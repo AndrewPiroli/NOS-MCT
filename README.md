@@ -19,7 +19,8 @@ The inventory file is in CSV format with a header and 5 fields, hostname or ip, 
 
 The device_type field must match a netmiko device_type
 
-Select operating mode with --yeet/--yoink and provide a jobfile with -j/--jobfile
+Select operating mode with --yeet/--yoink and provide a jobfile with -j/--jobfile.
+A "save only" operating mode is offered for convenience with the --save-only option, this mode just saves the config and does not require a jobfile.
 
 The jobfile is a simple text file with commands in it.
 
