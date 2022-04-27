@@ -35,6 +35,8 @@ Retrive configuration and status: ```python3 nosmct/nosmct.py -i examples/sample
 
 Deploy configuration: ```python3 nosmct/nosmct.py -i examples/sample-inventory.csv -j examples/cisco-yeet-example.txt --yeet```
 
+Save configuration only: ```python3 nosmct/nosmct.py -i examples/sample-inventory.csv --save-only```
+
 ## Additional options
 
 Increase number of concurrent connections by adding the `-t` or `--threads` flag followed by a number. (default is 10)
