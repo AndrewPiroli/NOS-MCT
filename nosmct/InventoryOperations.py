@@ -61,13 +61,13 @@ def lnms_config_validate_and_set_defaults(config: dict) -> bool:
     return True
 
 
-def lnms_query(config: dict) -> dict:
+def lnms_query(config: dict, endpoint: str) -> dict:
     protocol = config["protocol"]
     host = config["host"]
     tls_verify = config["tls_verify"]
     headers = {"X-Auth-Token": config["api_key"]}
     response = requests.get(
-        f"{protocol}://{host}{LIBRENMS_API_BASE_URL}devices",
+        f"{protocol}://{host}{LIBRENMS_API_BASE_URL}{endpoint}",
         headers=headers,
         verify=tls_verify,
     ).json()
@@ -99,7 +99,7 @@ def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue):
         confdata = json.load(config_file)
     if not lnms_config_validate_and_set_defaults(confdata):
         raise RuntimeError
-    response = lnms_query(confdata)
+    response = lnms_query(confdata, "devices")
     if not validate_lnms_response(response):
         raise RuntimeError
     print(response)
