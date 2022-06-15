@@ -11,3 +11,7 @@ class OperatingModes(Enum):
     YeetMode = auto()  # We are sending configurations to the devices
     YoinkMode = auto()  # We are pulling configurations/status from the devices
     SaveOnlyMode = auto()  # We are just saving the config
+
+
+LIBRENMS_API_VER = "v0"
+LIBRENMS_API_BASE_URL = f"/api/{LIBRENMS_API_VER}/"

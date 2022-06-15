@@ -1,8 +1,10 @@
 import csv
 import json
 import pathlib
+import requests
 from multiprocessing import Queue
 from typing import Iterator
+from constants import LIBRENMS_API_BASE_URL
 
 
 def read_csv_config(filename: pathlib.Path, log_q: Queue) -> Iterator[dict]:
@@ -56,6 +58,20 @@ def lnms_config_validate_and_set_defaults(config: dict) -> bool:
         return False
     if not isinstance(config["api_key"], str):
         return False
+    return True
+
+
+def lnms_query(config: dict) -> dict:
+    protocol = config["protocol"]
+    host = config["host"]
+    tls_verify = config["tls_verify"]
+    headers = {"X-Auth-Token": config["api_key"]}
+    response = requests.get(
+        f"{protocol}://{host}{LIBRENMS_API_BASE_URL}devices",
+        headers=headers,
+        verify=tls_verify,
+    ).json()
+    return response
 
 
 def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue):
@@ -73,4 +89,6 @@ def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue):
         confdata = json.load(config_file)
     if not lnms_config_validate_and_set_defaults(confdata):
         raise RuntimeError
-    print(confdata)
+    response = lnms_query(confdata)
+    print(response)
+    raise RuntimeError
