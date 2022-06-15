@@ -74,6 +74,16 @@ def lnms_query(config: dict) -> dict:
     return response
 
 
+def validate_lnms_response(response: dict) -> bool:
+    if not isinstance(response, dict):
+        return False
+    if "status" not in response or response["status"] != "ok":
+        return False
+    if "devices" not in response or not isinstance(response["devices"], list):
+        return False
+    return True
+
+
 def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue):
     """
     Retrieve an inventory from LibreNMS
@@ -90,5 +100,7 @@ def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue):
     if not lnms_config_validate_and_set_defaults(confdata):
         raise RuntimeError
     response = lnms_query(confdata)
+    if not validate_lnms_response(response):
+        raise RuntimeError
     print(response)
     raise RuntimeError
