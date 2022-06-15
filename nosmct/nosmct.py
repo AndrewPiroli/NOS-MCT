@@ -19,10 +19,10 @@ from FileOperations import (
     abspath,
     set_dir,
     load_jobfile,
-    read_config,
     preload_jobfile,
     sanitize_filename,
 )
+from InventoryOperations import read_csv_config
 
 
 def run(info: dict, p_config: dict):
@@ -229,7 +229,7 @@ def main():
         log_q.put(f"debug {repr(err)}")
         NUM_THREADS = NUM_THREADS_DEFAULT
     args.inventory = abspath(args.inventory)
-    config = read_config(abspath(args.inventory), log_q)
+    config = read_csv_config(abspath(args.inventory), log_q)
     if args.jobfile:
         args.jobfile = abspath(args.jobfile)
     if selected_mode != OperatingModes.SaveOnlyMode:
