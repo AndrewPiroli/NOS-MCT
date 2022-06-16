@@ -66,8 +66,9 @@ def lnms_query(config: dict, endpoint: str) -> dict:
     host = config["host"]
     tls_verify = config["tls_verify"]
     headers = {"X-Auth-Token": config["api_key"]}
+    port = ":" + str(config["port"])
     response = requests.get(
-        f"{protocol}://{host}{LIBRENMS_API_BASE_URL}{endpoint}",
+        f"{protocol}://{host}{port}{LIBRENMS_API_BASE_URL}{endpoint}",
         headers=headers,
         verify=tls_verify,
     ).json()
