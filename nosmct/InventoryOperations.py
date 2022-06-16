@@ -2,10 +2,42 @@ import csv
 import json
 import pathlib
 import requests
+import re
 from multiprocessing import Queue
-from typing import Iterator
+from typing import Iterator, List, Literal, Union
+from dataclasses import dataclass
 from constants import LIBRENMS_API_BASE_URL
 
+
+@dataclass(repr=True, order=True)
+class FilterEntry:
+    field: str
+    qualifiees: Union[str, List[str]]
+    qualifier: Union[Literal["EQ"], Literal["LIKE"]]
+    inverted: bool
+    must_match_all: bool
+
+    def ismatch(self, x: dict) -> bool:
+        if self.field not in x:
+            raise RuntimeError("Undefined behavior")
+        to_match = str(x[self.field])
+        if not isinstance(self.qualifiees, list):
+            self.qualifiees = [self.qualifiees,]
+        matches = 0
+        for candidate in self.qualifiees:
+            if self.qualifier == "EQ":
+                matches += 1 if to_match == str(candidate) else 0
+            elif self.qualifier == "LIKE":
+                matches += 1 if re.search(str(candidate), to_match) else 0
+            else:
+                raise RuntimeError("unreachable FilterQualifer")
+        if self.must_match_all:
+            return (len(self.qualifiees) == matches) != self.inverted
+        else:
+            return (matches > 0) != self.inverted
+
+BAD_OS = [r"windows", r"linux", r"proxmox", r"vmware", r"esxi", r"apc", r"drac", r"ping", r"pdu", r"exagrid", r"\\s", r"^$"]
+DEFAULT_FILTER = FilterEntry("os", BAD_OS, "LIKE", inverted = True, must_match_all = False)
 
 def read_csv_config(filename: pathlib.Path, log_q: Queue) -> Iterator[dict]:
     """
@@ -91,6 +123,15 @@ def validate_lnms_response(response: dict) -> bool:
         return False
     return True
 
+def lnms_run_builtin_filters(devices: list):
+    passed = list()
+    for device in devices:
+        if not isinstance(device, dict):
+            continue
+        if DEFAULT_FILTER.ismatch(device):
+            passed.append(device)
+    return passed
+
 
 def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue):
     """
@@ -110,5 +151,7 @@ def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue):
     response = lnms_query(confdata, "devices")
     if not validate_lnms_response(response):
         raise RuntimeError
-    print(response)
+    devices = lnms_run_builtin_filters(response["devices"])
+    for dev in devices:
+        print(dev["os"])
     raise RuntimeError
