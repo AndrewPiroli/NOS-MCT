@@ -151,15 +151,24 @@ def validate_lnms_response(response: dict) -> bool:
     return True
 
 
-def lnms_run_builtin_filters(devices: list):
+def lnms_run_filter(devices: list, filter: FilterEntry):
     passed = list()
     for device in devices:
         if not isinstance(device, dict):
             continue
-        if DEFAULT_FILTER.ismatch(device):
+        if filter.ismatch(device):
             passed.append(device)
     return passed
 
+def lnms_parse_filters(filterconfig: List[dict]) -> List[FilterEntry]:
+    filters = []
+    if not isinstance(filterconfig, list):
+        return filters
+    for potential_filter in filterconfig:
+        parsed_filter = FilterEntry(**potential_filter)
+        if isinstance(parsed_filter, FilterEntry):
+            filters.append(parsed_filter)
+    return filters
 
 def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue):
     """
@@ -179,7 +188,10 @@ def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue):
     response = lnms_query(confdata, "devices")
     if not validate_lnms_response(response):
         raise RuntimeError
-    devices = lnms_run_builtin_filters(response["devices"])
+    parsed_filters = lnms_parse_filters(confdata["filters"])
+    devices = lnms_run_filter(response["devices"], DEFAULT_FILTER)
+    for a_filter in parsed_filters:
+        devices = lnms_run_filter(devices, a_filter)
     for dev in devices:
         print(dev["os"])
     raise RuntimeError
