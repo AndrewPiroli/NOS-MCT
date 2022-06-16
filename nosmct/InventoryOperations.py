@@ -22,7 +22,9 @@ class FilterEntry:
             raise RuntimeError("Undefined behavior")
         to_match = str(x[self.field])
         if not isinstance(self.qualifiees, list):
-            self.qualifiees = [self.qualifiees,]
+            self.qualifiees = [
+                self.qualifiees,
+            ]
         matches = 0
         for candidate in self.qualifiees:
             if self.qualifier == "EQ":
@@ -36,8 +38,23 @@ class FilterEntry:
         else:
             return (matches > 0) != self.inverted
 
-BAD_OS = [r"windows", r"linux", r"proxmox", r"vmware", r"esxi", r"apc", r"drac", r"ping", r"pdu", r"exagrid", r"\\s", r"^$"]
-DEFAULT_FILTER = FilterEntry("os", BAD_OS, "LIKE", inverted = True, must_match_all = False)
+
+BAD_OS = [
+    r"windows",
+    r"linux",
+    r"proxmox",
+    r"vmware",
+    r"esxi",
+    r"apc",
+    r"drac",
+    r"ping",
+    r"pdu",
+    r"exagrid",
+    r"\\s",
+    r"^$",
+]
+DEFAULT_FILTER = FilterEntry("os", BAD_OS, "LIKE", inverted=True, must_match_all=False)
+
 
 def read_csv_config(filename: pathlib.Path, log_q: Queue) -> Iterator[dict]:
     """
@@ -62,9 +79,17 @@ def read_csv_config(filename: pathlib.Path, log_q: Queue) -> Iterator[dict]:
         for config_entry in reader:
             yield dict(zip(header, config_entry))
 
+
 lnms_config_exists = lambda key, config: (key in config)
-lnms_config_default = lambda key, default, config: config.__setitem__(key, default) if key not in config else None
-lnms_config_require = lambda key, valid_options, config: (key in config and config[key] in valid_options)
+lnms_config_default = (
+    lambda key, default, config: config.__setitem__(key, default)
+    if key not in config
+    else None
+)
+lnms_config_require = lambda key, valid_options, config: (
+    key in config and config[key] in valid_options
+)
+
 
 def lnms_config_validate_and_set_defaults(config: dict) -> bool:
     """
@@ -74,7 +99,9 @@ def lnms_config_validate_and_set_defaults(config: dict) -> bool:
         return False
     for required_key in ("host", "api_key", "filters", "translations"):
         if not lnms_config_exists(required_key, config):
-            print(f"FIXMElog: Required config key: {required_key} not found in LibreNMS config")
+            print(
+                f"FIXMElog: Required config key: {required_key} not found in LibreNMS config"
+            )
             return False
     lnms_config_default("protocol", "https", config)
     if not lnms_config_require("protocol", ("http", "https"), config):
@@ -122,6 +149,7 @@ def validate_lnms_response(response: dict) -> bool:
     if "devices" not in response or not isinstance(response["devices"], list):
         return False
     return True
+
 
 def lnms_run_builtin_filters(devices: list):
     passed = list()
