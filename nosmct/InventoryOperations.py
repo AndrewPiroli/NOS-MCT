@@ -50,6 +50,8 @@ def lnms_config_validate_and_set_defaults(config: dict) -> bool:
         config["protocol"] = config["protocol"].lower()
     if "port" not in config:
         config["port"] = 80 if config["protocol"] == "http" else 443
+    elif not isinstance(config["port"], int):
+        config["port"] = int(config["port"])
     if "tls_verify" not in config:
         config["tls_verify"] = config["protocol"] == "https"
     elif not isinstance(config["tls_verify"], bool):
