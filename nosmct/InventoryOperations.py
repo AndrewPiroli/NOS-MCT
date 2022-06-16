@@ -120,7 +120,7 @@ def lnms_config_validate_and_set_defaults(config: dict) -> bool:
         return False
     if not isinstance(config["api_key"], str):
         return False
-    if not isinstance(config["filters"], dict):
+    if not isinstance(config["filters"], list):
         return False
     if not isinstance(config["translations"], dict):
         return False
