@@ -12,8 +12,8 @@ from constants import LIBRENMS_API_BASE_URL
 @dataclass(repr=True, order=True)
 class FilterEntry:
     field: str
-    qualifiees: Union[str, List[str]]
     qualifier: Union[Literal["EQ"], Literal["LIKE"]]
+    qualifiees: Union[str, List[str]]
     inverted: bool
     must_match_all: bool
 
@@ -53,7 +53,7 @@ BAD_OS = [
     r"\\s",
     r"^$",
 ]
-DEFAULT_FILTER = FilterEntry("os", BAD_OS, "LIKE", inverted=True, must_match_all=False)
+DEFAULT_FILTER = FilterEntry("os", "LIKE", BAD_OS, inverted=True, must_match_all=False)
 
 
 def read_csv_config(filename: pathlib.Path, log_q: Queue) -> Iterator[dict]:
