@@ -103,7 +103,9 @@ def lnms_config_validate_and_set_defaults(config: dict, log_q: Queue) -> bool:
         return False
     for required_key in ("host", "api_key", "filters", "username", "password"):
         if not lnms_config_exists(required_key, config):
-            log_q.put(f"critical Required config key: {required_key} not found in LibreNMS config")
+            log_q.put(
+                f"critical Required config key: {required_key} not found in LibreNMS config"
+            )
             return False
     lnms_config_default("protocol", "https", config)
     if not lnms_config_require("protocol", ("http", "https"), config):
@@ -157,7 +159,7 @@ def validate_lnms_response(response: dict, log_q: Queue) -> bool:
         log_q.put("critical Invalid response from LibreNMS API")
         return False
     if "status" not in response or response["status"] != "ok":
-        log_q.put("critical LibreNMS API returned a non-\"ok\" status")
+        log_q.put('critical LibreNMS API returned a non-"ok" status')
         return False
     if "devices" not in response or not isinstance(response["devices"], list):
         log_q.put("critical LibreNMS API didn't return any devices")
