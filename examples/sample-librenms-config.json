@@ -1,0 +1,18 @@
+{
+    "protocol": "https",
+    "host":"network.example.org",
+    "api_key": "566b4a9a2799c3a4c52808054ce9b42d",
+    "username": "admin",
+    "password": "P@ssw0rd",
+    "secret": "$ecr3t",
+    "filters":
+        [
+            {
+                "field": "os",
+                "qualifier": "EQ",
+                "qualifiees": ["ios", "iosxe"],
+                "inverted": false,
+                "must_match_all": false
+            }
+        ]
+}
