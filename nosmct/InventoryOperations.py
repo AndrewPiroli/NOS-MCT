@@ -80,12 +80,15 @@ def read_csv_config(filename: pathlib.Path, log_q: Queue) -> Iterator[dict]:
             yield dict(zip(header, config_entry))
 
 
+# Check if a key exists
 lnms_config_exists = lambda key, config: (key in config)
+# Set a key to some default value if it doesn't exist
 lnms_config_default = (
     lambda key, default, config: config.__setitem__(key, default)
     if key not in config
     else None
 )
+# Check a key exists and it's value against a list of valid options
 lnms_config_require = lambda key, valid_options, config: (
     key in config and config[key] in valid_options
 )
@@ -130,6 +133,9 @@ def lnms_config_validate_and_set_defaults(config: dict, log_q: Queue) -> bool:
 
 
 def lnms_query(config: dict, endpoint: str) -> dict:
+    """
+    Perform a LibreNMS GET request and return the JSON response
+    """
     protocol = config["protocol"]
     host = config["host"]
     tls_verify = config["tls_verify"]
@@ -144,6 +150,9 @@ def lnms_query(config: dict, endpoint: str) -> dict:
 
 
 def validate_lnms_response(response: dict, log_q: Queue) -> bool:
+    """
+    Run basic checks on the response data from LibreNMS
+    """
     if not isinstance(response, dict):
         log_q.put("critical Invalid response from LibreNMS API")
         return False
@@ -156,7 +165,10 @@ def validate_lnms_response(response: dict, log_q: Queue) -> bool:
     return True
 
 
-def lnms_run_filter(devices: list, filter: FilterEntry):
+def lnms_run_filter(devices: list, filter: FilterEntry) -> List[dict]:
+    """
+    Run a single FilterEntry on the device list data
+    """
     passed = list()
     for device in devices:
         if not isinstance(device, dict):
@@ -167,6 +179,9 @@ def lnms_run_filter(devices: list, filter: FilterEntry):
 
 
 def lnms_parse_filters(filterconfig: List[dict]) -> List[FilterEntry]:
+    """
+    Parse the list of filters from JSON/dict to FilterEntry objects
+    """
     filters = []
     if not isinstance(filterconfig, list):
         return filters
@@ -180,7 +195,7 @@ def lnms_parse_filters(filterconfig: List[dict]) -> List[FilterEntry]:
 lnms_to_netmiko_lut = {"ios": "cisco_ios", "iosxe": "cisco_ios"}
 
 
-def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue):
+def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue) -> Iterator[dict]:
     """
     Retrieve an inventory from LibreNMS
     The file passed is a json configuration file describing necessary info such as
@@ -189,7 +204,7 @@ def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue):
      - port
      - API key
      - filters to apply to the data
-     - transformations to apply to the data
+     - network device login data
     """
     with open(filename, "r") as config_file:
         confdata = json.load(config_file)
