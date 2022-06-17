@@ -22,7 +22,7 @@ from FileOperations import (
     preload_jobfile,
     sanitize_filename,
 )
-from InventoryOperations import read_csv_config
+from InventoryOperations import read_csv_config, get_inventory_from_lnms
 
 
 def run(info: dict, p_config: dict):
@@ -140,8 +140,12 @@ def handle_arguments() -> argparse.Namespace:
         action="store_true",
         help="Save only mode, just saves running-config",
     )
-    parser.add_argument(
-        "-i", "--inventory", help="The inventory file to load.", required=True
+    inventory_selection = parser.add_mutually_exclusive_group(required=True)
+    inventory_selection.add_argument(
+        "-i", "--inventory", help="CSV inventory file to load."
+    )
+    inventory_selection.add_argument(
+        "-l", "--librenms-config", help="JSON config file for LibreNMS inventory"
     )
     parser.add_argument(
         "-j",
@@ -228,8 +232,10 @@ def main():
         )
         log_q.put(f"debug {repr(err)}")
         NUM_THREADS = NUM_THREADS_DEFAULT
-    args.inventory = abspath(args.inventory)
-    config = read_csv_config(abspath(args.inventory), log_q)
+    if args.inventory:
+        config = read_csv_config(abspath(args.inventory), log_q)
+    elif args.librenms_config:
+        config = get_inventory_from_lnms(abspath(args.librenms_config), log_q)
     if args.jobfile:
         args.jobfile = abspath(args.jobfile)
     if selected_mode != OperatingModes.SaveOnlyMode:
