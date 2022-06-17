@@ -159,6 +159,7 @@ def lnms_run_filter(devices: list, filter: FilterEntry):
             passed.append(device)
     return passed
 
+
 def lnms_parse_filters(filterconfig: List[dict]) -> List[FilterEntry]:
     filters = []
     if not isinstance(filterconfig, list):
@@ -168,6 +169,10 @@ def lnms_parse_filters(filterconfig: List[dict]) -> List[FilterEntry]:
         if isinstance(parsed_filter, FilterEntry):
             filters.append(parsed_filter)
     return filters
+
+
+lnms_to_netmiko_lut = {"ios": "cisco_ios", "iosxe": "cisco_ios"}
+
 
 def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue):
     """
@@ -192,5 +197,24 @@ def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue):
     for a_filter in parsed_filters:
         devices = lnms_run_filter(devices, a_filter)
     for dev in devices:
-        print(dev["os"])
-    raise RuntimeError
+        conn_addr = None
+        if len(dev["ip"].strip()):
+            conn_addr = dev["ip"]
+        elif len(dev["hostname"].strip()):
+            conn_addr = dev["hostname"]
+        elif len(dev["sysName"].strip()):
+            conn_addr = dev["sysName"]
+        if not conn_addr:
+            continue
+        if dev["os"] in lnms_to_netmiko_lut:
+            netmiko_os = lnms_to_netmiko_lut[dev["os"]]
+        else:
+            continue
+        yield {
+            "host": conn_addr,
+            "username": confdata["username"],
+            "password": confdata["password"],
+            "secret": confdata["secret"],
+            "device_type": netmiko_os,
+        }
+    return
