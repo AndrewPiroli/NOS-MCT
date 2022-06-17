@@ -97,7 +97,7 @@ def lnms_config_validate_and_set_defaults(config: dict) -> bool:
     """
     if not isinstance(config, dict):
         return False
-    for required_key in ("host", "api_key", "filters", "translations"):
+    for required_key in ("host", "api_key", "filters"):
         if not lnms_config_exists(required_key, config):
             print(
                 f"FIXMElog: Required config key: {required_key} not found in LibreNMS config"
@@ -121,8 +121,6 @@ def lnms_config_validate_and_set_defaults(config: dict) -> bool:
     if not isinstance(config["api_key"], str):
         return False
     if not isinstance(config["filters"], list):
-        return False
-    if not isinstance(config["translations"], dict):
         return False
     return True
 
