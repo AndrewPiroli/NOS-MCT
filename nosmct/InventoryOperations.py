@@ -91,36 +91,38 @@ lnms_config_require = lambda key, valid_options, config: (
 )
 
 
-def lnms_config_validate_and_set_defaults(config: dict) -> bool:
+def lnms_config_validate_and_set_defaults(config: dict, log_q: Queue) -> bool:
     """
     Validate and fill in missing defaults for the loaded LibreNMS config
     """
     if not isinstance(config, dict):
+        log_q.put("critical Error: LibreNMS config malformed (not dict)")
         return False
     for required_key in ("host", "api_key", "filters", "username", "password"):
         if not lnms_config_exists(required_key, config):
-            print(
-                f"FIXMElog: Required config key: {required_key} not found in LibreNMS config"
-            )
+            log_q.put(f"critical Required config key: {required_key} not found in LibreNMS config")
             return False
     lnms_config_default("protocol", "https", config)
     if not lnms_config_require("protocol", ("http", "https"), config):
-        print("Invalid protocol: " + config["protocol"])
+        log_q.put("critical LibreNMS config invalid protocol: " + config["protocol"])
         return False
     if not lnms_config_exists("port", config):
         config["port"] = 80 if config["protocol"] == "http" else 443
     elif not isinstance(config["port"], int):
         config["port"] = int(config["port"])
     if not lnms_config_require("port", range(65536), config):
-        print("Invalid port no: " + config["port"])
+        log_q.put("critical Invalid port no: " + config["port"])
         return False
     if not lnms_config_exists("tls_verify", config):
         lnms_config_default("tls_verify", (config["protocol"] == "https"), config)
     elif not lnms_config_require("tls_verify", (True, False), config):
+        log_q.put("critical LibreNMS config key tls_verify must be true or false")
         return False
     if not isinstance(config["api_key"], str):
+        log_q.put("critical LibreNMS config key api_key must be a string")
         return False
     if not isinstance(config["filters"], list):
+        log_q.put(f"critical LibreNMS config must have a list 'filters'")
         return False
     lnms_config_default("secret", config["password"], config)
     return True
@@ -140,12 +142,15 @@ def lnms_query(config: dict, endpoint: str) -> dict:
     return response
 
 
-def validate_lnms_response(response: dict) -> bool:
+def validate_lnms_response(response: dict, log_q: Queue) -> bool:
     if not isinstance(response, dict):
+        log_q.put("critical Invalid response from LibreNMS API")
         return False
     if "status" not in response or response["status"] != "ok":
+        log_q.put("critical LibreNMS API returned a non-\"ok\" status")
         return False
     if "devices" not in response or not isinstance(response["devices"], list):
+        log_q.put("critical LibreNMS API didn't return any devices")
         return False
     return True
 
@@ -187,10 +192,12 @@ def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue):
     """
     with open(filename, "r") as config_file:
         confdata = json.load(config_file)
-    if not lnms_config_validate_and_set_defaults(confdata):
+    if not lnms_config_validate_and_set_defaults(confdata, log_q):
+        log_q.put("critical LibreNMS config validation failed")
         raise RuntimeError
     response = lnms_query(confdata, "devices")
-    if not validate_lnms_response(response):
+    if not validate_lnms_response(response, log_q):
+        log_q.put("critical LibreNMS response validation failed")
         raise RuntimeError
     parsed_filters = lnms_parse_filters(confdata["filters"])
     devices = lnms_run_filter(response["devices"], DEFAULT_FILTER)
