@@ -121,8 +121,9 @@ def lnms_config_validate_and_set_defaults(config: dict, log_q: Queue) -> bool:
     if not isinstance(config["api_key"], str):
         log_q.put("critical LibreNMS config key api_key must be a string")
         return False
+    lnms_config_default("filters", [], config)
     if not isinstance(config["filters"], list):
-        log_q.put(f"critical LibreNMS config must have a list 'filters'")
+        log_q.put(f"critical LibreNMS config 'filters' must be a list")
         return False
     lnms_config_default("secret", config["password"], config)
     return True
