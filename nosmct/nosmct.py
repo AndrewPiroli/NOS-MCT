@@ -236,6 +236,9 @@ def main():
         config = read_csv_config(abspath(args.inventory), log_q)
     elif args.librenms_config:
         config = get_inventory_from_lnms(abspath(args.librenms_config), log_q)
+        # If there's a problem (or missing deps), InventoryOps will notify the user and return None.
+        if not config:
+            return
     if args.jobfile:
         args.jobfile = abspath(args.jobfile)
     if selected_mode != OperatingModes.SaveOnlyMode:

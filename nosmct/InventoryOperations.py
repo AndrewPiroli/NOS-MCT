@@ -1,12 +1,18 @@
 import csv
 import json
 import pathlib
-import requests
 import re
 from multiprocessing import Queue
-from typing import Iterator, List, Literal, Union
+from typing import Iterator, List, Literal, Optional, Union
 from dataclasses import dataclass
 from constants import LIBRENMS_API_BASE_URL
+
+try:
+    import requests
+
+    HAVE_REQUESTS = True
+except ImportError:
+    HAVE_REQUESTS = False
 
 
 @dataclass(repr=True, order=True)
@@ -134,10 +140,12 @@ def lnms_config_validate_and_set_defaults(config: dict, log_q: Queue) -> bool:
     return True
 
 
-def lnms_query(config: dict, endpoint: str) -> dict:
+def lnms_query(config: dict, endpoint: str) -> Optional[dict]:
     """
     Perform a LibreNMS GET request and return the JSON response
     """
+    if not HAVE_REQUESTS:
+        return None
     protocol = config["protocol"]
     host = config["host"]
     tls_verify = config["tls_verify"]
@@ -197,7 +205,9 @@ def lnms_parse_filters(filterconfig: List[dict]) -> List[FilterEntry]:
 lnms_to_netmiko_lut = {"ios": "cisco_ios", "iosxe": "cisco_ios"}
 
 
-def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue) -> Iterator[dict]:
+def get_inventory_from_lnms(
+    filename: pathlib.Path, log_q: Queue
+) -> Optional[Iterator[dict]]:
     """
     Retrieve an inventory from LibreNMS
     The file passed is a json configuration file describing necessary info such as
@@ -208,15 +218,20 @@ def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue) -> Iterator[di
      - filters to apply to the data
      - network device login data
     """
+    if not HAVE_REQUESTS:
+        log_q.put(
+            "critical requests library not installed. Please install it via pip to support LibreNMS integration"
+        )
+        return None
     with open(filename, "r") as config_file:
         confdata = json.load(config_file)
     if not lnms_config_validate_and_set_defaults(confdata, log_q):
         log_q.put("critical LibreNMS config validation failed")
-        raise RuntimeError
+        return None
     response = lnms_query(confdata, "devices")
     if not validate_lnms_response(response, log_q):
         log_q.put("critical LibreNMS response validation failed")
-        raise RuntimeError
+        return None
     parsed_filters = lnms_parse_filters(confdata["filters"])
     devices = lnms_run_filter(response["devices"], DEFAULT_FILTER)
     for a_filter in parsed_filters:
@@ -242,4 +257,3 @@ def get_inventory_from_lnms(filename: pathlib.Path, log_q: Queue) -> Iterator[di
             "secret": confdata["secret"],
             "device_type": netmiko_os,
         }
-    return

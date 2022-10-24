@@ -9,7 +9,7 @@ Designed for minimal configuration, few dependencies, and fast deployment either
 
 * Python 3.6+
 * Netmiko - Install via pip: `python3 -m pip install netmiko`
-* Requests - Install via pip `python3 -m pip install requests`
+* Requests - (Optional: For LibreNMS integration only) Install via pip `python3 -m pip install requests`
 
 
 ## Configuration:
@@ -21,7 +21,7 @@ A device inventory is passed with -i/--inventory
 
 The inventory file is in CSV format with a header and 5 fields, hostname or ip, username, password, secret, device_type
 
-The device_type field must match a netmiko device_type
+The device\_type field must match a netmiko device\_type
 
 ### LibreNMS integration
 
