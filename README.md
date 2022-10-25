@@ -7,7 +7,7 @@ Designed for minimal configuration, few dependencies, and fast deployment either
 
 ## Requires:
 
-* Python 3.6+
+* Python 3.7+
 * Netmiko - Install via pip: `python3 -m pip install netmiko`
 * Requests - (Optional: For LibreNMS integration only) Install via pip `python3 -m pip install requests`
 
