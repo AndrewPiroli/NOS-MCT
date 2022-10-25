@@ -19,13 +19,15 @@ There are 2 options for specifiying what devices to target: manual CSV inventory
 ### CSV 
 A device inventory is passed with -i/--inventory
 
-The inventory file is in CSV format with a header and 5 fields, hostname or ip, username, password, secret, device_type
+The inventory file is in CSV format with a header and 5 fields, `hostname` OR `ip`, `username`, `password`, `secret`, and `device_type`
 
 The device\_type field must match a netmiko device\_type
 
 ### LibreNMS integration
 
-A JSON config file is used to connect to LibreNMS. You will need API access and an API key, read only permissions are suffcient.
+A JSON config file is used to connect to LibreNMS. Pass the config file with the -l/--librenms option.
+
+You will need API access and an API key, read only permissions are suffcient.
 
 The JSON file MUST specify the following:
  - `host` String - hostname/ip of your LibreNMS instance
@@ -71,6 +73,8 @@ Retrive configuration and status: ```python3 nosmct/nosmct.py -i examples/sample
 Deploy configuration: ```python3 nosmct/nosmct.py -i examples/sample-inventory.csv -j examples/cisco-yeet-example.txt --yeet```
 
 Save configuration only: ```python3 nosmct/nosmct.py -i examples/sample-inventory.csv --save-only```
+
+To use LibreNMS integration, the same commands as above apply, just replace `-i ...` with `-l examples/sample-librenms-config.json`
 
 ## Additional options
 
