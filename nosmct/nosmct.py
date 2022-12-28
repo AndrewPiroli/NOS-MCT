@@ -24,25 +24,28 @@ from FileOperations import (
 )
 from InventoryOperations import read_csv_config, get_inventory_from_lnms
 
+"""
+`p_config` dictionary contains configuration info on how the function itself should operate. It contains:
+  mode is class OperatingMode, which tells the process how to interpret the jobs
+  log_queue is a queue to place log messages
+  jobfile is the path to the jobfile incase it's not already loaded
+  jobfile_cache is a dict with a cached list of commands for each device_type
+  netmiko_debug is a path to a debug file, if present, it will log raw io for each device.
+  output_dir is a path to the selected output directory. By default this is Output/<TIMESTAMP> but it may be overridden
+"""
+global p_config
+p_config = {}
 
-def run(info: dict, p_config: dict):
+
+def run(info: dict):
     """
     Worker thread running in process
     Creates a connection to the specified device, creates a folder for it, and runs throuigh the jobfile saving the results to the folder
     `info` dict contains device information like ip/hostname, device type, and login details
     `info` is passed directly to netmiko's `ConnectHandler` via kwargs dictionary unpacking
-    `p_config` dictionary contains configuration info on how the function itself should operate. It contains:
-      mode is class OperatingMode, which tells the process how to interpret the jobs
-      log_queue is a queue to place log messages
-      jobfile is the path to the jobfile incase it's not already loaded
-      jobfile_cache is a dict with a cached list of commands for each device_type
-      netmiko_debug is a path to a debug file, if present, it will log raw io for each device.
     """
-    # Save the original directory, we chdir around and we need to come back because the process will
-    # inherit it next time around (I dislike this behavior of ProcessPoolExecutor).
-    # If it ever breaks, it can be moved to p_config, but I see no need to do that preemptively
-    # because I don't really like having to pass in p_config (can this be a module level global? - I think so)
-    original_directory = abspath(".")
+    global p_config
+    original_directory = p_config["output_dir"]
     mode = p_config["mode"]
     log_q = p_config["log_queue"]
     jobfile = p_config["jobfile"]
@@ -156,6 +159,7 @@ def handle_arguments() -> argparse.Namespace:
     parser.add_argument(
         "-t", "--threads", help="The number of devices to connect to at once."
     )
+    parser.add_argument("-o", "--output-dir", help="Override the output directory")
     parser.add_argument(
         "--debug-netmiko",
         help="Advanced debuging, logs netmiko internals to a file",
@@ -186,6 +190,7 @@ def main():
     6) Spinlock until process pool completes or Ctrl-C is received
     7) Cleanup and exit.
     """
+    global p_config
     start = dtime.datetime.now()
     args = handle_arguments()
     log_level = logging.WARNING
@@ -218,7 +223,7 @@ def main():
         log_q.put("critical No operating mode selected from command line args")
         raise RuntimeError("No operating mode selected from command line args")
     log_q.put(f"warning Running in operating mode: {selected_mode}")
-    # This is a bit annoying to do, argparse can do validation (future self, you want to subclass `argparse.Action` override __call__)
+    # TODO argparse can do validation (future self, you want to subclass `argparse.Action` override __call__)
     # Not sure it's worth it just yet, I'd even be fine crashing with invalid input especially since I *only* verify this one
     try:
         NUM_THREADS = int(args.threads) if args.threads else NUM_THREADS_DEFAULT
@@ -241,29 +246,36 @@ def main():
             return
     if args.jobfile:
         args.jobfile = abspath(args.jobfile)
-    if selected_mode != OperatingModes.SaveOnlyMode:
-        set_dir("Output", log_q)
-        set_dir(dtime.datetime.now().strftime("%Y-%m-%d %H.%M"), log_q)
     netmiko_debug_file = abspath(".") / "netmiko." if args.debug_netmiko else None
     preloaded_jobfile = (
         preload_jobfile(args.jobfile, log_q) if not args.no_preload else None
     )
-    p_config = {
-        "mode": selected_mode,
-        "log_queue": log_q,
-        "netmiko_debug": netmiko_debug_file,
-        "jobfile": args.jobfile,
-        "jobfile_cache": preloaded_jobfile,
-    }
+    start_dir = abspath(".")
+    if args.output_dir:
+        output_dir = abspath(args.output_dir)
+    else:
+        output_dir = abspath("Output") / dtime.datetime.now().strftime("%Y-%m-%d %H.%M")
+    if selected_mode != OperatingModes.SaveOnlyMode:
+        set_dir(output_dir, log_q)
+    p_config.update(
+        {
+            "mode": selected_mode,
+            "log_queue": log_q,
+            "netmiko_debug": netmiko_debug_file,
+            "jobfile": args.jobfile,
+            "jobfile_cache": preloaded_jobfile,
+            "output_dir": output_dir,
+        }
+    )
     # Stackoverflow https://stackoverflow.com/a/63495323
     # CC-BY-SA 4.0
     # By: geitda https://stackoverflow.com/users/14133684/geitda
     # Hopefully this improves Ctrl-C performance....
     with ProcessPoolExecutor(max_workers=NUM_THREADS) as ex:
-        # Can't `ex.map` here because of p_config
-        # I could use itertools.repeat or whatever
-        # I don't think it impacts performance much however
-        futures = [ex.submit(run, creds, p_config) for creds in config]
+        # ex.map fails here because it returns a generator
+        # wrapping it in list() does not work either
+        # TODO figure that out
+        futures = [ex.submit(run, creds) for creds in config]
         done, not_done = wait(futures, timeout=0)
         try:
             while not_done:
@@ -277,8 +289,7 @@ def main():
             )
             _ = wait(not_done, timeout=None)
     # End Stackoverflow code
-    os.chdir("..")  # Back out of timestamped folder
-    os.chdir("..")  # Backout of "Output" folder
+    os.chdir(start_dir)
     # We are back where we started
     end = dtime.datetime.now()
     elapsed = (end - start).total_seconds()
