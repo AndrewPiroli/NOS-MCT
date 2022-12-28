@@ -8,6 +8,7 @@ import logging
 import mctlogger
 from sys import argv
 from concurrent.futures import ProcessPoolExecutor, wait
+from time import perf_counter_ns
 from netmiko import ConnectHandler  # type: ignore
 from netmiko import NetmikoAuthenticationException, NetmikoTimeoutException
 from constants import (
@@ -191,7 +192,7 @@ def main():
     7) Cleanup and exit.
     """
     global p_config
-    start = dtime.datetime.now()
+    start = perf_counter_ns()
     args = handle_arguments()
     log_level = logging.WARNING
     if args.quiet:
@@ -291,9 +292,9 @@ def main():
     # End Stackoverflow code
     os.chdir(start_dir)
     # We are back where we started
-    end = dtime.datetime.now()
-    elapsed = (end - start).total_seconds()
-    log_q.put(f"warning Time Elapsed: {elapsed}")
+    end = perf_counter_ns()
+    elapsed = round((end - start) / 1000000, 3)
+    log_q.put(f"warning Time Elapsed: {elapsed}ms")
     # We could safely kill the logger because it's a process not a thread
     # (we could kill it even as a thread too since the program is about to be over lul)
     # But if stdout is very far behind it could lose some messages
