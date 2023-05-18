@@ -1,11 +1,10 @@
+# SPDX-License-Identifier: MIT
+# Author: Andrew Piroli
+# Year: 2021-2022
 import pathlib
 from typing import Iterator, List, Union, Optional
 import os
-import csv
-import shutil
-from queue import Empty as QEmptyException
-import constants
-from multiprocessing import Queue
+import logging
 
 # These characters/strings are illegal or their usage is discouraged on Windows, but could appear in a command name or device hostname.
 illegals = list(' <>:\\/|?*$"')
@@ -28,23 +27,24 @@ def sanitize_filename(filename: str) -> str:
     return filename
 
 
-def set_dir(name: Union[str, pathlib.Path], log_q: Queue):
+def set_dir(name: Union[str, pathlib.Path]):
     """
     Helper function to create (and handle existing) folders and change directory to them automatically.
     """
+    logger = logging.getLogger("nosmct")
     try:
         abspath(name).mkdir(parents=True, exist_ok=True)
-        log_q.put(f"debug set_dir: abspath({name}).mkdir()")
+        logger.debug(f"set_dir: abspath({name}).mkdir()")
     except Exception as e:
-        log_q.put(
-            f"warning Could not create {name} directory in {os.getcwd()}\nReason {e}"
+        logger.warning(
+            f"Could not create {name} directory in {os.getcwd()}\nReason {e}"
         )
     try:
         os.chdir(name)
-        log_q.put(f"debug set_dir: os.chdir({name})")
+        logger.debug(f"set_dir: os.chdir({name})")
     except Exception as e:
-        log_q.put(
-            f"warning Could not change to {name} directory from {os.getcwd()}\nReason {e}"
+        logger.warning(
+            f"Could not change to {name} directory from {os.getcwd()}\nReason {e}"
         )
 
 
@@ -61,13 +61,13 @@ def load_jobfile(filename: pathlib.Path) -> Iterator[str]:
 
 def preload_jobfile(
     jobfile: Optional[pathlib.Path],
-    log_q: Queue,
 ) -> Optional[List[str]]:
     """
     Like load_jobfile, but consumes the generator fully so the entire file may be cached.
     """
+    logger = logging.getLogger("nosmct")
     if not jobfile:
         return None
     result = list(load_jobfile(jobfile))
-    log_q.put(f"debug Added {jobfile} to cache")
+    logger.debug(f"Added {jobfile} to cache")
     return result

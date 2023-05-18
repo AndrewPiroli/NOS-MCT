@@ -1,8 +1,11 @@
+# SPDX-License-Identifier: MIT
+# Author: Andrew Piroli
+# Year: 2022
 import csv
 import json
 import pathlib
 import re
-from multiprocessing import Queue
+import logging
 from typing import Iterator, List, Literal, Optional, Union
 from dataclasses import dataclass
 from constants import LIBRENMS_API_BASE_URL
@@ -62,17 +65,20 @@ BAD_OS = [
 DEFAULT_FILTER = FilterEntry("os", "LIKE", BAD_OS, inverted=True, must_match_all=False)
 
 
-def read_csv_config(filename: pathlib.Path, log_q: Queue) -> Iterator[dict]:
+def read_csv_config(filename: pathlib.Path) -> Iterator[dict]:
     """
     Generator function to processes the CSV config file. Handles the various CSV formats and stitches the header onto each entry.
     """
+    logger = logger.getLogger("nosmct")
     with open(filename, "r") as config_file:
-        log_q.put(f"debug read_config: filename: {filename}")
+        logger.debug(f"read_config: filename: {filename}")
         try:
             contents = [
                 next(config_file) for _ in range(2)
             ]  # Reading 2 lines of the CSV, is sufficient to detect style
-        except StopIteration:  # Only occurs when the file has less than two lines....not a very useful file, but I'm ready for it
+        except (
+            StopIteration
+        ):  # Only occurs when the file has less than two lines....not a very useful file, but I'm ready for it
             pass
         finally:
             full_contents = "".join(contents)
@@ -81,7 +87,7 @@ def read_csv_config(filename: pathlib.Path, log_q: Queue) -> Iterator[dict]:
         del contents, full_contents
         reader = csv.reader(config_file, dialect)
         header = next(reader)
-        log_q.put(f"debug read_config: header: {header}")
+        logger.debug(f"read_config: header: {header}")
         for config_entry in reader:
             yield dict(zip(header, config_entry))
 
@@ -100,41 +106,42 @@ lnms_config_require = lambda key, valid_options, config: (
 )
 
 
-def lnms_config_validate_and_set_defaults(config: dict, log_q: Queue) -> bool:
+def lnms_config_validate_and_set_defaults(config: dict) -> bool:
     """
     Validate and fill in missing defaults for the loaded LibreNMS config
     """
+    logger = logging.getLogger("nosmct")
     if not isinstance(config, dict):
-        log_q.put("critical Error: LibreNMS config malformed (not dict)")
+        logger.critical("Error: LibreNMS config malformed (not dict)")
         return False
     for required_key in ("host", "api_key", "filters", "username", "password"):
         if not lnms_config_exists(required_key, config):
-            log_q.put(
-                f"critical Required config key: {required_key} not found in LibreNMS config"
+            logger.critical(
+                f"Required config key: {required_key} not found in LibreNMS config"
             )
             return False
     lnms_config_default("protocol", "https", config)
     if not lnms_config_require("protocol", ("http", "https"), config):
-        log_q.put("critical LibreNMS config invalid protocol: " + config["protocol"])
+        logger.critical("LibreNMS config invalid protocol: " + config["protocol"])
         return False
     if not lnms_config_exists("port", config):
         config["port"] = 80 if config["protocol"] == "http" else 443
     elif not isinstance(config["port"], int):
         config["port"] = int(config["port"])
     if not lnms_config_require("port", range(65536), config):
-        log_q.put("critical Invalid port no: " + config["port"])
+        logger.critical("Invalid port no: " + config["port"])
         return False
     if not lnms_config_exists("tls_verify", config):
         lnms_config_default("tls_verify", (config["protocol"] == "https"), config)
     elif not lnms_config_require("tls_verify", (True, False), config):
-        log_q.put("critical LibreNMS config key tls_verify must be true or false")
+        logger.critical("LibreNMS config key tls_verify must be true or false")
         return False
     if not isinstance(config["api_key"], str):
-        log_q.put("critical LibreNMS config key api_key must be a string")
+        logger.critical("LibreNMS config key api_key must be a string")
         return False
     lnms_config_default("filters", [], config)
     if not isinstance(config["filters"], list):
-        log_q.put(f"critical LibreNMS config 'filters' must be a list")
+        logger.critical("LibreNMS config 'filters' must be a list")
         return False
     lnms_config_default("secret", config["password"], config)
     return True
@@ -159,18 +166,19 @@ def lnms_query(config: dict, endpoint: str) -> Optional[dict]:
     return response
 
 
-def validate_lnms_response(response: dict, log_q: Queue) -> bool:
+def validate_lnms_response(response: dict) -> bool:
     """
     Run basic checks on the response data from LibreNMS
     """
+    logger = logging.getLogger("nosmct")
     if not isinstance(response, dict):
-        log_q.put("critical Invalid response from LibreNMS API")
+        logger.critical("Invalid response from LibreNMS API")
         return False
     if "status" not in response or response["status"] != "ok":
-        log_q.put('critical LibreNMS API returned a non-"ok" status')
+        logger.critical("LibreNMS API returned a non-ok status")
         return False
     if "devices" not in response or not isinstance(response["devices"], list):
-        log_q.put("critical LibreNMS API didn't return any devices")
+        logger.critical("LibreNMS API didn't return any devices")
         return False
     return True
 
@@ -205,9 +213,7 @@ def lnms_parse_filters(filterconfig: List[dict]) -> List[FilterEntry]:
 lnms_to_netmiko_lut = {"ios": "cisco_ios", "iosxe": "cisco_ios"}
 
 
-def get_inventory_from_lnms(
-    filename: pathlib.Path, log_q: Queue
-) -> Optional[Iterator[dict]]:
+def get_inventory_from_lnms(filename: pathlib.Path) -> Optional[Iterator[dict]]:
     """
     Retrieve an inventory from LibreNMS
     The file passed is a json configuration file describing necessary info such as
@@ -218,19 +224,20 @@ def get_inventory_from_lnms(
      - filters to apply to the data
      - network device login data
     """
+    logger = logging.getLogger("nosmct")
     if not HAVE_REQUESTS:
-        log_q.put(
-            "critical requests library not installed. Please install it via pip to support LibreNMS integration"
+        logger.critical(
+            "requests library not installed. Please install it via pip to support LibreNMS integration"
         )
         return None
     with open(filename, "r") as config_file:
         confdata = json.load(config_file)
-    if not lnms_config_validate_and_set_defaults(confdata, log_q):
-        log_q.put("critical LibreNMS config validation failed")
+    if not lnms_config_validate_and_set_defaults(confdata):
+        logger.critical("LibreNMS config validation failed")
         return None
     response = lnms_query(confdata, "devices")
-    if not validate_lnms_response(response, log_q):
-        log_q.put("critical LibreNMS response validation failed")
+    if not validate_lnms_response(response):
+        logger.critical("LibreNMS response validation failed")
         return None
     parsed_filters = lnms_parse_filters(confdata["filters"])
     devices = lnms_run_filter(response["devices"], DEFAULT_FILTER)

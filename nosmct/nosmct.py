@@ -1,12 +1,13 @@
-# Andrew Piroli (c)2019-2021
-#  MIT LICENSE  #
+# SPDX-License-Identifier: MIT
+# Author: Andrew Piroli
+# Year: 2019-2023
 import datetime as dtime
 import multiprocessing as mp
 import argparse
 import os
 import logging
-import mctlogger
-from sys import argv
+import logging.handlers
+from sys import argv, stdout, stderr
 from concurrent.futures import ProcessPoolExecutor, wait
 from time import perf_counter_ns
 from netmiko import ConnectHandler  # type: ignore
@@ -28,7 +29,7 @@ from InventoryOperations import read_csv_config, get_inventory_from_lnms
 """
 `p_config` dictionary contains configuration info on how the function itself should operate. It contains:
   mode is class OperatingMode, which tells the process how to interpret the jobs
-  log_queue is a queue to place log messages
+  log_level is the configured logging level
   jobfile is the path to the jobfile incase it's not already loaded
   jobfile_cache is a dict with a cached list of commands for each device_type
   netmiko_debug is a path to a debug file, if present, it will log raw io for each device.
@@ -38,7 +39,7 @@ global p_config
 p_config = {}
 
 
-def run(info: dict):
+def run(info: dict, log_q: mp.Queue):
     """
     Worker thread running in process
     Creates a connection to the specified device, creates a folder for it, and runs throuigh the jobfile saving the results to the folder
@@ -46,14 +47,16 @@ def run(info: dict):
     `info` is passed directly to netmiko's `ConnectHandler` via kwargs dictionary unpacking
     """
     global p_config
+    logger = logging.getLogger("nosmct")
+    logger.addHandler(logging.handlers.QueueHandler(log_q))
+    logger.setLevel(p_config["log_level"])
     original_directory = p_config["output_dir"]
     mode = p_config["mode"]
-    log_q = p_config["log_queue"]
     jobfile = p_config["jobfile"]
     jobfile_cache = p_config["jobfile_cache"]
     #
     host = info["host"]
-    log_q.put(f"warning running - {host}")
+    logger.info(f"running - {host}")
     # Configure logging for netmiko
     nm_logger = logging.getLogger("netmiko")
     # Remove their default handler because it doesn't really work with my crappy logging sytstem I cooked up
@@ -83,18 +86,18 @@ def run(info: dict):
             connection.enable()
             hostname = sanitize_filename(connection.find_prompt().split("#")[0])
             if mode != OperatingModes.SaveOnlyMode:
-                set_dir(original_directory / hostname, log_q)
-            log_q.put(f"debug run: Found hostname: {hostname} for {host}")
+                set_dir(original_directory / hostname)
+            logger.debug(f"run: Found hostname: {hostname} for {host}")
             if mode == OperatingModes.YoinkMode:
                 for cmd in jobfile:
                     filename = f"{sanitize_filename(cmd)}.txt"
-                    log_q.put(f"debug run: Got filename: {filename} for {host}")
+                    logger.debug(f"run: Got filename: {filename} for {host}")
                     with open(filename, "w") as output_file:
                         output_file.write(connection.send_command(cmd))
             elif mode == OperatingModes.YeetMode:
                 # Filename here is not derived from any user controlled source, no need to run it through the sanitizer
                 filename = "configset.txt"
-                log_q.put(f"debug run: Got filename: {filename} for {host}")
+                logger.debug(f"run: Got filename: {filename} for {host}")
                 try:
                     with open(filename, "w") as output_file:
                         output_file.write(connection.send_config_set(jobfile))
@@ -106,21 +109,19 @@ def run(info: dict):
                     connection.save_config()
             elif mode == OperatingModes.SaveOnlyMode:
                 connection.save_config()
-                log_q.put(f"warning Saved config for {host}")
+                logger.info(f"Saved config for {host}")
             else:
-                log_q.put(f"critical Unhandled Operating Mode: {mode = }")
+                logger.critical(f"Unhandled Operating Mode: {mode = }")
                 raise RuntimeError("Unhandled Operating Mode: {mode = }")
     except (NetmikoTimeoutException, NetmikoAuthenticationException) as err:
-        log_q.put(
-            f"critical Exception in netmiko connection: {type(err).__name__}: {err}"
-        )
+        logger.critical(f"Exception in netmiko connection: {type(err).__name__}: {err}")
     except OSError as err:
-        log_q.put(f"critical Error writing file: {type(err).__name__}: {err}")
+        logger.critical(f"Error writing file: {type(err).__name__}: {err}")
     except Exception as err:
-        log_q.put(f"critical Unknown exception: {type(err).__name__}: {err}")
+        logger.critical(f"Unknown exception: {type(err).__name__}: {err}")
     finally:
         os.chdir(original_directory)
-    log_q.put(f"warning finished -  {host}")
+    logger.info(f"finished -  {host}")
 
 
 def handle_arguments() -> argparse.Namespace:
@@ -194,26 +195,19 @@ def main():
     global p_config
     start = perf_counter_ns()
     args = handle_arguments()
-    log_level = logging.WARNING
+    log_level = logging.INFO
     if args.quiet:
         log_level = logging.CRITICAL
     if args.verbose:
         log_level = logging.DEBUG
-    # Regular multiprocessing.Queue's seem to not work (can't remember why, need to re-test)
-    # Building Queue "Proxies" with multiprocessing.Manager seems to work great however.
-    # Having the manager object around was useful in the past, but now it's not used again
-    # manager = mp.Manager()
-    #
-    # Logging is done over a queue on a separate process to serialize everything
-    # This is needed (from testing) because having large process pools fight over the same stdout did not go well.
-    # It also uncouples tty/stdout performance from the execution of the worker processes.
-    # This is useful because some terminals (really just Microsoft) are really slow.
-    log_q = mp.Manager().Queue()
-    logging_process = mp.Process(target=mctlogger.helper, args=(log_q, log_level))
+    log_q = mp.Manager().Queue(-1)
+    logging_process = mp.Process(target=out_of_process_logger, args=(log_q, log_level))
     logging_process.start()
-    log_q.put("warning Copyright Andrew Piroli 2019-2020")
-    log_q.put("warning MIT License")
-    log_q.put("warning ")
+    logger = logging.getLogger("nosmct")
+    logger.addHandler(logging.handlers.QueueHandler(log_q))
+    logger.setLevel(log_level)
+    logger.info("Copyright Andrew Piroli 2019-2020")
+    logger.info("MIT License\n")
     if args.yeet:
         selected_mode = OperatingModes.YeetMode
     elif args.yoink:
@@ -221,9 +215,9 @@ def main():
     elif args.save_only:
         selected_mode = OperatingModes.SaveOnlyMode
     else:
-        log_q.put("critical No operating mode selected from command line args")
+        logger.critical("No operating mode selected from command line args")
         raise RuntimeError("No operating mode selected from command line args")
-    log_q.put(f"warning Running in operating mode: {selected_mode}")
+    logger.info(f"Running in operating mode: {selected_mode}")
     # TODO argparse can do validation (future self, you want to subclass `argparse.Action` override __call__)
     # Not sure it's worth it just yet, I'd even be fine crashing with invalid input especially since I *only* verify this one
     try:
@@ -233,35 +227,33 @@ def main():
                 f"User input: {NUM_THREADS} - below 1, can not create less than 1 processes."
             )
     except (ValueError, RuntimeError) as err:
-        log_q.put(
-            f"critical NUM_THREADS out of range: setting to default value of {NUM_THREADS_DEFAULT}"
+        logger.critical(
+            f"NUM_THREADS out of range: setting to default value of {NUM_THREADS_DEFAULT}"
         )
-        log_q.put(f"debug {repr(err)}")
+        logger.debug(f"{repr(err)}")
         NUM_THREADS = NUM_THREADS_DEFAULT
     if args.inventory:
-        config = read_csv_config(abspath(args.inventory), log_q)
+        config = read_csv_config(abspath(args.inventory))
     elif args.librenms_config:
-        config = get_inventory_from_lnms(abspath(args.librenms_config), log_q)
+        config = get_inventory_from_lnms(abspath(args.librenms_config))
         # If there's a problem (or missing deps), InventoryOps will notify the user and return None.
         if not config:
             return
     if args.jobfile:
         args.jobfile = abspath(args.jobfile)
     netmiko_debug_file = abspath(".") / "netmiko." if args.debug_netmiko else None
-    preloaded_jobfile = (
-        preload_jobfile(args.jobfile, log_q) if not args.no_preload else None
-    )
+    preloaded_jobfile = preload_jobfile(args.jobfile) if not args.no_preload else None
     start_dir = abspath(".")
     if args.output_dir:
         output_dir = abspath(args.output_dir)
     else:
         output_dir = abspath("Output") / dtime.datetime.now().strftime("%Y-%m-%d %H.%M")
     if selected_mode != OperatingModes.SaveOnlyMode:
-        set_dir(output_dir, log_q)
+        set_dir(output_dir)
     p_config.update(
         {
             "mode": selected_mode,
-            "log_queue": log_q,
+            "log_level": log_level,
             "netmiko_debug": netmiko_debug_file,
             "jobfile": args.jobfile,
             "jobfile_cache": preloaded_jobfile,
@@ -273,10 +265,7 @@ def main():
     # By: geitda https://stackoverflow.com/users/14133684/geitda
     # Hopefully this improves Ctrl-C performance....
     with ProcessPoolExecutor(max_workers=NUM_THREADS) as ex:
-        # ex.map fails here because it returns a generator
-        # wrapping it in list() does not work either
-        # TODO figure that out
-        futures = [ex.submit(run, creds) for creds in config]
+        futures = [ex.submit(run, creds, log_q) for creds in config]
         done, not_done = wait(futures, timeout=0)
         try:
             while not_done:
@@ -285,22 +274,38 @@ def main():
         except KeyboardInterrupt:
             for future in not_done:
                 _ = future.cancel()
-            log_q.put(
-                "critical Jobs cancelled, please wait for remaining jobs to finish."
-            )
+            logger.critical("Jobs cancelled, please wait for remaining jobs to finish.")
             _ = wait(not_done, timeout=None)
     # End Stackoverflow code
     os.chdir(start_dir)
     # We are back where we started
     end = perf_counter_ns()
     elapsed = round((end - start) / 1000000, 3)
-    log_q.put(f"warning Time Elapsed: {elapsed}ms")
-    # We could safely kill the logger because it's a process not a thread
-    # (we could kill it even as a thread too since the program is about to be over lul)
-    # But if stdout is very far behind it could lose some messages
-    # So just do it the right way and let it shut itself down.
+    logger.info(f"Time Elapsed: {elapsed}ms")
     log_q.put(THREAD_KILL_MSG)
     logging_process.join()
+
+
+def out_of_process_logger(log_q, level):
+    logging.basicConfig(level=level)
+    logger = logging.getLogger("nosmct")
+    logger.debug("Logger: Initialized")
+    while True:
+        try:
+            record = log_q.get()
+            if record == THREAD_KILL_MSG:
+                break
+            logger = logging.getLogger(record.name)
+            logger.handle(record)
+        except Exception:
+            import traceback
+
+            logger.critical("Logging process failed")
+            logger.critical(print(traceback.format_exc()))
+            break
+        finally:
+            stdout.flush()
+            stderr.flush()
 
 
 if __name__ == "__main__":
