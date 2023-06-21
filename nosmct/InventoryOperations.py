@@ -96,14 +96,10 @@ def read_csv_config(filename: pathlib.Path) -> Iterator[dict]:
 lnms_config_exists = lambda key, config: (key in config)
 # Set a key to some default value if it doesn't exist
 lnms_config_default = (
-    lambda key, default, config: config.__setitem__(key, default)
-    if key not in config
-    else None
+    lambda key, default, config: config.__setitem__(key, default) if key not in config else None
 )
 # Check a key exists and it's value against a list of valid options
-lnms_config_require = lambda key, valid_options, config: (
-    key in config and config[key] in valid_options
-)
+lnms_config_require = lambda key, valid_options, config: (key in config and config[key] in valid_options)
 
 
 def lnms_config_validate_and_set_defaults(config: dict) -> bool:
@@ -116,9 +112,7 @@ def lnms_config_validate_and_set_defaults(config: dict) -> bool:
         return False
     for required_key in ("host", "api_key", "filters", "username", "password"):
         if not lnms_config_exists(required_key, config):
-            logger.critical(
-                f"Required config key: {required_key} not found in LibreNMS config"
-            )
+            logger.critical(f"Required config key: {required_key} not found in LibreNMS config")
             return False
     lnms_config_default("protocol", "https", config)
     if not lnms_config_require("protocol", ("http", "https"), config):

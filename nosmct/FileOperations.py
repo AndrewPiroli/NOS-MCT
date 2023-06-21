@@ -36,16 +36,12 @@ def set_dir(name: Union[str, pathlib.Path]):
         abspath(name).mkdir(parents=True, exist_ok=True)
         logger.debug(f"set_dir: abspath({name}).mkdir()")
     except Exception as e:
-        logger.warning(
-            f"Could not create {name} directory in {os.getcwd()}\nReason {e}"
-        )
+        logger.warning(f"Could not create {name} directory in {os.getcwd()}\nReason {e}")
     try:
         os.chdir(name)
         logger.debug(f"set_dir: os.chdir({name})")
     except Exception as e:
-        logger.warning(
-            f"Could not change to {name} directory from {os.getcwd()}\nReason {e}"
-        )
+        logger.warning(f"Could not change to {name} directory from {os.getcwd()}\nReason {e}")
 
 
 def load_jobfile(filename: pathlib.Path) -> Iterator[str]:

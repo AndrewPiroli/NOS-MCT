@@ -63,9 +63,7 @@ def run(info: dict, log_q: mp.Queue):
     nm_logger.removeHandler(nm_logger.handlers[0])
     if p_config["netmiko_debug"] is not None:
         nm_logger.setLevel(logging.DEBUG)
-        nm_log_fh = logging.FileHandler(
-            str(p_config["netmiko_debug"]) + f"{os.getpid()}.log"
-        )
+        nm_log_fh = logging.FileHandler(str(p_config["netmiko_debug"]) + f"{os.getpid()}.log")
         nm_logger.addHandler(nm_log_fh)
     else:
         nm_logger.addHandler(logging.NullHandler())
@@ -146,9 +144,7 @@ def handle_arguments() -> argparse.Namespace:
         help="Save only mode, just saves running-config",
     )
     inventory_selection = parser.add_mutually_exclusive_group(required=True)
-    inventory_selection.add_argument(
-        "-i", "--inventory", help="CSV inventory file to load."
-    )
+    inventory_selection.add_argument("-i", "--inventory", help="CSV inventory file to load.")
     inventory_selection.add_argument(
         "-l", "--librenms-config", help="JSON config file for LibreNMS inventory"
     )
@@ -158,9 +154,7 @@ def handle_arguments() -> argparse.Namespace:
         help="The file containing commands to send to the NOS",
         required=("--save-only" not in argv),
     )
-    parser.add_argument(
-        "-t", "--threads", help="The number of devices to connect to at once."
-    )
+    parser.add_argument("-t", "--threads", help="The number of devices to connect to at once.")
     parser.add_argument("-o", "--output-dir", help="Override the output directory")
     parser.add_argument(
         "--debug-netmiko",
@@ -173,12 +167,8 @@ def handle_arguments() -> argparse.Namespace:
         action="store_true",
     )
     output_config = parser.add_mutually_exclusive_group(required=False)
-    output_config.add_argument(
-        "-q", "--quiet", help="Suppress most output", action="store_true"
-    )
-    output_config.add_argument(
-        "-v", "--verbose", help="Enable verbose output", action="store_true"
-    )
+    output_config.add_argument("-q", "--quiet", help="Suppress most output", action="store_true")
+    output_config.add_argument("-v", "--verbose", help="Enable verbose output", action="store_true")
     return parser.parse_args()
 
 
@@ -223,13 +213,9 @@ def main():
     try:
         NUM_THREADS = int(args.threads) if args.threads else NUM_THREADS_DEFAULT
         if NUM_THREADS < 1:
-            raise RuntimeError(
-                f"User input: {NUM_THREADS} - below 1, can not create less than 1 processes."
-            )
+            raise RuntimeError(f"User input: {NUM_THREADS} - below 1, can not create less than 1 processes.")
     except (ValueError, RuntimeError) as err:
-        logger.critical(
-            f"NUM_THREADS out of range: setting to default value of {NUM_THREADS_DEFAULT}"
-        )
+        logger.critical(f"NUM_THREADS out of range: setting to default value of {NUM_THREADS_DEFAULT}")
         logger.debug(f"{repr(err)}")
         NUM_THREADS = NUM_THREADS_DEFAULT
     if args.inventory:
