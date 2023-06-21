@@ -83,16 +83,16 @@ def run(info: dict, log_q: mp.Queue):
             # So dying hard here is acceptable to me.
             connection.enable()
             hostname = sanitize_filename(connection.find_prompt().split("#")[0])
-            if mode != OperatingModes.SaveOnlyMode:
+            if mode != OperatingModes.SaveOnly:
                 set_dir(original_directory / hostname)
             logger.debug(f"run: Found hostname: {hostname} for {host}")
-            if mode == OperatingModes.YoinkMode:
+            if mode == OperatingModes.Pull:
                 for cmd in jobfile:
                     filename = f"{sanitize_filename(cmd)}.txt"
                     logger.debug(f"run: Got filename: {filename} for {host}")
                     with open(filename, "w") as output_file:
                         output_file.write(connection.send_command(cmd))
-            elif mode == OperatingModes.YeetMode:
+            elif mode == OperatingModes.Push:
                 # Filename here is not derived from any user controlled source, no need to run it through the sanitizer
                 filename = "configset.txt"
                 logger.debug(f"run: Got filename: {filename} for {host}")
@@ -105,7 +105,7 @@ def run(info: dict, log_q: mp.Queue):
                 finally:
                     # No matter what happens, I don't want to leave a device without at least trying to save the config
                     connection.save_config()
-            elif mode == OperatingModes.SaveOnlyMode:
+            elif mode == OperatingModes.SaveOnly:
                 connection.save_config()
                 logger.info(f"Saved config for {host}")
             else:
@@ -129,14 +129,14 @@ def handle_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     mode_selection = parser.add_mutually_exclusive_group(required=True)
     mode_selection.add_argument(
-        "--yeet",
+        "--push",
         action="store_true",
-        help="Yeet mode, push configurations to NOS",
+        help="Push mode, send configurations to NOS",
     )
     mode_selection.add_argument(
-        "--yoink",
+        "--pull",
         action="store_true",
-        help="Yoink mode, pull configurations from NOS",
+        help="Pull mode, pull info from NOS",
     )
     mode_selection.add_argument(
         "--save-only",
@@ -198,12 +198,12 @@ def main():
     logger.setLevel(log_level)
     logger.info("Copyright Andrew Piroli 2019-2020")
     logger.info("MIT License\n")
-    if args.yeet:
-        selected_mode = OperatingModes.YeetMode
-    elif args.yoink:
-        selected_mode = OperatingModes.YoinkMode
+    if args.push:
+        selected_mode = OperatingModes.Push
+    elif args.pull:
+        selected_mode = OperatingModes.Pull
     elif args.save_only:
-        selected_mode = OperatingModes.SaveOnlyMode
+        selected_mode = OperatingModes.SaveOnly
     else:
         logger.critical("No operating mode selected from command line args")
         raise RuntimeError("No operating mode selected from command line args")
@@ -234,7 +234,7 @@ def main():
         output_dir = abspath(args.output_dir)
     else:
         output_dir = abspath("Output") / dtime.datetime.now().strftime("%Y-%m-%d %H.%M")
-    if selected_mode != OperatingModes.SaveOnlyMode:
+    if selected_mode != OperatingModes.SaveOnly:
         set_dir(output_dir)
     p_config.update(
         {

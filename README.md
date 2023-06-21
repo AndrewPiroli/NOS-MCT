@@ -56,21 +56,21 @@ The examples directory has a sample of both CSV and LibreNMS config files
 
 ### Jobfiles
 
-Select operating mode with --yeet/--yoink and provide a jobfile with -j/--jobfile.
+Select operating mode with --push/--pull and provide a jobfile with -j/--jobfile.
 A "save only" operating mode is offered for convenience with the --save-only option, this mode just saves the config and does not require a jobfile.
 
 The jobfile is a simple text file with commands in it.
 
-In Yoink mode, the commands are run one by one in exec mode (for Cisco, other NOS will use their equivalent) and the output is saved per command.
-In Yeet mode, the commands are sent all at once as a config set to be ran sequentially in config mode (or other NOS equivalent), a log of the commands run and any output is saved.
+In Pull mode, the commands are run one by one in exec mode (for Cisco, other NOS will use their equivalent) and the output is saved per command.
+In Push mode, the commands are sent all at once as a config set to be ran sequentially in config mode (or other NOS equivalent), a log of the commands run and any output is saved.
 
 A list of supported device types can be found [here](./PLATFORMS.md)
 
 ## Example Usage:
 
-Retrive configuration and status: ```python3 nosmct/nosmct.py -i examples/sample-inventory.csv -j examples/cisco-yoink-example.txt --yoink```
+Retrive configuration and status: ```python3 nosmct/nosmct.py -i examples/sample-inventory.csv -j examples/cisco-pull-example.txt --pull```
 
-Deploy configuration: ```python3 nosmct/nosmct.py -i examples/sample-inventory.csv -j examples/cisco-yeet-example.txt --yeet```
+Deploy configuration: ```python3 nosmct/nosmct.py -i examples/sample-inventory.csv -j examples/cisco-push-example.txt --push```
 
 Save configuration only: ```python3 nosmct/nosmct.py -i examples/sample-inventory.csv --save-only```
 
