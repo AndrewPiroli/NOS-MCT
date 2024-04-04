@@ -69,7 +69,7 @@ def read_csv_config(filename: pathlib.Path) -> Iterator[dict]:
     """
     Generator function to processes the CSV config file. Handles the various CSV formats and stitches the header onto each entry.
     """
-    logger = logger.getLogger("nosmct")
+    logger = logging.getLogger("nosmct")
     with open(filename, "r") as config_file:
         logger.debug(f"read_config: filename: {filename}")
         try:

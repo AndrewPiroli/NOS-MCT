@@ -48,8 +48,6 @@ def run(info: dict, log_q: mp.Queue):
     """
     global p_config
     logger = logging.getLogger("nosmct")
-    logger.addHandler(logging.handlers.QueueHandler(log_q))
-    logger.setLevel(p_config["log_level"])
     original_directory = p_config["output_dir"]
     mode = p_config["mode"]
     jobfile = p_config["jobfile"]
