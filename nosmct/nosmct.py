@@ -39,7 +39,7 @@ global p_config
 p_config = {}
 
 
-def run(info: dict, log_q: mp.Queue):
+def run(info: dict):
     """
     Worker thread running in process
     Creates a connection to the specified device, creates a folder for it, and runs throuigh the jobfile saving the results to the folder
@@ -249,7 +249,7 @@ def main():
     # By: geitda https://stackoverflow.com/users/14133684/geitda
     # Hopefully this improves Ctrl-C performance....
     with ProcessPoolExecutor(max_workers=NUM_THREADS) as ex:
-        futures = [ex.submit(run, creds, log_q) for creds in config]
+        futures = [ex.submit(run, creds) for creds in config]
         done, not_done = wait(futures, timeout=0)
         try:
             while not_done:
