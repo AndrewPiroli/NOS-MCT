@@ -6,7 +6,7 @@ import json
 import pathlib
 import re
 import logging
-from typing import Iterator, List, Literal, Optional, Union
+from typing import Iterator, List, Literal, Optional, Union, TypeGuard
 from dataclasses import dataclass
 from constants import LIBRENMS_API_BASE_URL
 
@@ -95,8 +95,8 @@ def read_csv_config(filename: pathlib.Path) -> Iterator[dict]:
 # Check if a key exists
 lnms_config_exists = lambda key, config: (key in config)
 # Set a key to some default value if it doesn't exist
-lnms_config_default = (
-    lambda key, default, config: config.__setitem__(key, default) if key not in config else None
+lnms_config_default = lambda key, default, config: (
+    config.__setitem__(key, default) if key not in config else None
 )
 # Check a key exists and it's value against a list of valid options
 lnms_config_require = lambda key, valid_options, config: (key in config and config[key] in valid_options)
@@ -123,7 +123,7 @@ def lnms_config_validate_and_set_defaults(config: dict) -> bool:
     elif not isinstance(config["port"], int):
         config["port"] = int(config["port"])
     if not lnms_config_require("port", range(65536), config):
-        logger.critical("Invalid port no: " + config["port"])
+        logger.critical("Invalid port no: " + str(config["port"]))
         return False
     if not lnms_config_exists("tls_verify", config):
         lnms_config_default("tls_verify", (config["protocol"] == "https"), config)
@@ -157,10 +157,12 @@ def lnms_query(config: dict, endpoint: str) -> Optional[dict]:
         headers=headers,
         verify=tls_verify,
     ).json()
+    if not isinstance(response, dict):
+        raise TypeError("Unexpected response from LibreNMS")
     return response
 
 
-def validate_lnms_response(response: dict) -> bool:
+def validate_lnms_response(response: dict | None) -> TypeGuard[dict]:
     """
     Run basic checks on the response data from LibreNMS
     """

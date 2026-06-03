@@ -10,6 +10,7 @@ import logging.handlers
 from sys import argv, stdout, stderr
 from concurrent.futures import ProcessPoolExecutor, wait
 from time import perf_counter_ns
+from typing import cast
 from netmiko import ConnectHandler  # type: ignore
 from netmiko import NetmikoAuthenticationException, NetmikoTimeoutException
 from constants import (
@@ -89,7 +90,7 @@ def run(info: dict):
                     filename = f"{sanitize_filename(cmd)}.txt"
                     logger.debug(f"run: Got filename: {filename} for {host}")
                     with open(filename, "w") as output_file:
-                        output_file.write(connection.send_command(cmd))
+                        output_file.write(cast(str, connection.send_command(cmd)))
             elif mode == OperatingModes.Push:
                 # Filename here is not derived from any user controlled source, no need to run it through the sanitizer
                 filename = "configset.txt"
