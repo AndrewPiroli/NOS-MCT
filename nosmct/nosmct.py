@@ -25,7 +25,7 @@ from FileOperations import (
     preload_jobfile,
     sanitize_filename,
 )
-from InventoryOperations import read_csv_config, get_inventory_from_lnms
+from InventoryOperations import read_csv_config, get_inventory_from_lnms, read_yaml_config
 
 """
 `p_config` dictionary contains configuration info on how the function itself should operate. It contains:
@@ -218,12 +218,15 @@ def main():
         logger.debug(f"{repr(err)}")
         NUM_THREADS = NUM_THREADS_DEFAULT
     if args.inventory:
-        config = read_csv_config(abspath(args.inventory))
+        if args.inventory.lower().endswith("yaml"):
+            config = read_yaml_config(abspath(args.inventory))
+        else:
+            config = read_csv_config(abspath(args.inventory))
     elif args.librenms_config:
         config = get_inventory_from_lnms(abspath(args.librenms_config))
-        # If there's a problem (or missing deps), InventoryOps will notify the user and return None.
-        if not config:
-            return
+    # If there's a problem (or missing deps), InventoryOps will notify the user and return None.
+    if not config:
+        return
     if args.jobfile:
         args.jobfile = abspath(args.jobfile)
     netmiko_debug_file = abspath(".") / "netmiko." if args.debug_netmiko else None

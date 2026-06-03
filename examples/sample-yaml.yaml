@@ -1,0 +1,22 @@
+---
+credentials:
+  default:
+    username: admin
+    password: P@ssw0rd
+    secret: Secr3t
+  use-root:
+    username: root
+    password: toor
+device_type: cisco_ios
+groups:
+  example-1:
+    hosts:
+      - 192.168.1.1
+      - 192.168.1.2
+      - 192.168.1.3
+      - 192.168.1.4
+  grp2:
+    credentials: use-root
+    device_type: dell_os10
+    hosts:
+      - 172.16.0.2

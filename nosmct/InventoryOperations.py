@@ -6,16 +6,23 @@ import json
 import pathlib
 import re
 import logging
-from typing import Iterator, List, Literal, Optional, Union, TypeGuard
+from typing import Iterator, List, Literal, Optional, Union, TypeGuard, cast
 from dataclasses import dataclass
 from constants import LIBRENMS_API_BASE_URL
 
+# Optional dependencies
 try:
     import requests
 
     HAVE_REQUESTS = True
 except ImportError:
     HAVE_REQUESTS = False
+try:
+    import strictyaml
+
+    HAVE_YAML = True
+except ImportError:
+    HAVE_YAML = False
 
 
 @dataclass(repr=True, order=True)
@@ -260,3 +267,55 @@ def get_inventory_from_lnms(filename: pathlib.Path) -> Optional[Iterator[dict]]:
             "secret": confdata["secret"],
             "device_type": netmiko_os,
         }
+
+
+def read_yaml_config(filename: pathlib.Path) -> Optional[Iterator[dict]]:
+    logger = logging.getLogger("nosmct")
+    with open(filename, "r") as yf:
+        yconfig = strictyaml.load(yf.read())
+    if not ({"credentials", "groups"}).issubset(yconfig.keys()):
+        logger.critical(
+            'YAML config does not contain the correct sections: "credentials", "device_type", "groups"'
+        )
+        return None
+    for grpname in yconfig["groups"]:
+        grp = yconfig["groups"][grpname]
+        maybe_creds: Optional[dict] = None
+        if "hosts" not in grp.keys():
+            logger.error(f"Skipping group {grpname} because it has no host section")
+            continue
+        if "credentials" in grp.keys():
+            requested_creds = grp["credentials"].text
+            if not requested_creds in yconfig["credentials"]:
+                logger.error(
+                    f"Skipping group {grpname} because its credential section doesn't match any credential-group."
+                )
+                continue
+            maybe_creds = yconfig["credentials"][requested_creds].data
+        else:
+            # No credential request for this group, check for a credential group named default
+            if "default" in yconfig["credentials"]:
+                maybe_creds = yconfig["credentials"]["default"].data
+            elif len(yconfig["credentials"]) == 1:  # Ok, is there only one credential group to pick?
+                maybe_creds = yconfig["credentials"][0].data
+            else:  # We're not going to guess
+                logger.error(
+                    f"Skipping group {grpname} because it doesn't specify a credential group AND multiple credential groups detected but none are named default."
+                )
+                continue
+        creds: dict = cast(dict, maybe_creds)
+        # Similar logic for device_type
+        maybe_devty: Optional[str] = None
+        if "device_type" in grp.keys():
+            maybe_devty = grp["device_type"].text
+        elif "device_type" in yconfig.keys():
+            maybe_devty = yconfig["device_type"].text
+        else:
+            logger.error(
+                f"Skipping group {grpname} because it doesn't specify a device_type and there is no default"
+            )
+        devty = cast(str, maybe_devty)
+        for host in grp["hosts"]:
+            build = {"host": host.text, "device_type": devty}
+            build.update(creds)
+            yield build

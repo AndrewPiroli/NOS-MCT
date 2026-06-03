@@ -14,14 +14,25 @@ Designed for minimal configuration, few dependencies, and fast deployment either
 
 ## Configuration:
 
-There are 2 options for specifiying what devices to target: manual CSV inventory or LibreNMS integration
+There are multiple options for specifiying what devices to target
 
-### CSV 
+### Manual inventory of devices
+
 A device inventory is passed with -i/--inventory
 
-The inventory file is in CSV format with a header and 5 fields, `hostname` OR `ip`, `username`, `password`, `secret`, and `device_type`
+The inventory file is in CSV or YAML format, depending on your needs.
 
-The device\_type field must match a netmiko device\_type
+CSV allows per device specification of credentials and device type. It is useful for a *small* number of devices in a heterogeneous environment.
+Create a CSV with a header and 5 fields, `hostname` OR `ip`, `username`, `password`, `secret`, and `device_type` and fill each appropriately for your devices.
+
+The device\_type field must match a netmiko device\_type.
+
+The other option for manual inventory is YAML\*, this allows grouping together devices to use the same sets of credentials and device\_type.
+This is recommended for small to medium deployments where the same credentials are used to access multiple devices. Specify 1 or more credential groups and link them to 1 or more device groups. It is possible to omit the "linking" step if you have only 1 credential group or one of the groups is named "default". It is also possible to specify a default `device_type`, but not required.
+
+\* NOTE: A subset of YAML called [StrictYAML](https://hitchdev.com/strictyaml/) is actually used. This shouldn't matter in this application and helps avoid mistakes due to the poor design of YAML.
+
+See the `examples/` directory for each.
 
 ### LibreNMS integration
 
