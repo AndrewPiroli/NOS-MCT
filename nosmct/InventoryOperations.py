@@ -271,6 +271,9 @@ def get_inventory_from_lnms(filename: pathlib.Path) -> Optional[Iterator[dict]]:
 
 def read_yaml_config(filename: pathlib.Path) -> Optional[Iterator[dict]]:
     logger = logging.getLogger("nosmct")
+    if not HAVE_YAML:
+        logger.critical("strictyaml library not installed. Please install it (python3 -m pip install strictyaml) to support YAML config files")
+        return None
     with open(filename, "r") as yf:
         yconfig = strictyaml.load(yf.read())
     if not ({"credentials", "groups"}).issubset(yconfig.keys()):
