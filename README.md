@@ -8,8 +8,9 @@ Designed for minimal configuration, few dependencies, and fast deployment either
 ## Requires:
 
 * Python 3.10+
-* Netmiko - Install via pip: `python3 -m pip install netmiko`
-* Requests - (Optional: For LibreNMS integration only) Install via pip `python3 -m pip install requests`
+* netmiko - Install via pip: `python3 -m pip install netmiko`
+* requests - (Optional: For LibreNMS integration only) Install via pip `python3 -m pip install requests`
+* strictyaml - (Optional: For YAML configuration file support only) Install via pip `python3 -m pip install strictyaml`
 
 
 ## Configuration:
